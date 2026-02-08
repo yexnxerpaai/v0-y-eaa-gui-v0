@@ -3,10 +3,11 @@
 import { useState } from "react"
 import { IdentityStrip } from "@/components/control-plane/identity-strip"
 import { SystemPanel } from "@/components/control-plane/system-panel"
+import { ExtensionPopup } from "@/components/control-plane/extension-popup"
 import { JobProfilesSection } from "@/components/control-plane/job-profiles-section"
 import { QuestionnaireSection } from "@/components/control-plane/questionnaire-section"
 import { ApplicationLogsSection } from "@/components/control-plane/application-logs-section"
-import { Settings2 } from "lucide-react"
+import { Settings2, Puzzle } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 type Section = "job-profiles" | "questionnaire" | "application-logs"
@@ -19,6 +20,7 @@ const sections: { id: Section; label: string }[] = [
 
 export default function ControlPlane() {
   const [systemPanelOpen, setSystemPanelOpen] = useState(false)
+  const [extensionOpen, setExtensionOpen] = useState(false)
   const [activeSection, setActiveSection] = useState<Section>("job-profiles")
 
   return (
@@ -36,14 +38,24 @@ export default function ControlPlane() {
                 v0
               </span>
             </div>
-            <button
-              type="button"
-              className="flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
-              onClick={() => setSystemPanelOpen(true)}
-              aria-label="System"
-            >
-              <Settings2 className="h-3.5 w-3.5" strokeWidth={1.5} />
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                className="flex h-7 items-center gap-1.5 border border-primary/20 bg-primary/5 px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+                onClick={() => setExtensionOpen(true)}
+              >
+                <Puzzle className="h-3 w-3" strokeWidth={1.5} />
+                Y.EAA Extension
+              </button>
+              <button
+                type="button"
+                className="flex h-6 w-6 items-center justify-center text-muted-foreground transition-colors hover:text-foreground"
+                onClick={() => setSystemPanelOpen(true)}
+                aria-label="System"
+              >
+                <Settings2 className="h-3.5 w-3.5" strokeWidth={1.5} />
+              </button>
+            </div>
           </div>
         </div>
         
@@ -146,6 +158,9 @@ export default function ControlPlane() {
 
       {/* System Panel */}
       <SystemPanel open={systemPanelOpen} onOpenChange={setSystemPanelOpen} />
+
+      {/* Extension Popup */}
+      <ExtensionPopup open={extensionOpen} onOpenChange={setExtensionOpen} />
     </div>
   )
 }
