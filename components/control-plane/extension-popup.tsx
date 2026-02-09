@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
+  Loader2,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -86,15 +87,69 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   )
 }
 
+/* ─── Mock: Referral Code Verification ────────────────── */
+
+async function verifyReferralCode(
+  code: string
+): Promise<{ success: boolean; quotaAdded?: number; error?: string }> {
+  await new Promise((r) => setTimeout(r, 1200))
+  const validCodes = ["YEAA-ALPHA", "YEAA-BETA", "YEAA-TEST", "YEAA-2026"]
+  if (validCodes.includes(code.trim().toUpperCase())) {
+    return { success: true, quotaAdded: 5 }
+  }
+  if (code.trim().length === 0) {
+    return { success: false, error: "Invalid referral code" }
+  }
+  return { success: false, error: "This referral code has already been used" }
+}
+
 /* ─── STATE 0: Setup ──────────────────────────────────── */
 
 function SetupState({ onContinue }: { onContinue: () => void }) {
   const [resumeText, setResumeText] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [showApiKey, setShowApiKey] = useState(false)
-  const freeQuota = 5
+  const [freeQuota, setFreeQuota] = useState(5)
+
+  // Referral code state
+  const [referralCode, setReferralCode] = useState("")
+  const [referralLoading, setReferralLoading] = useState(false)
+  const [referralSuccess, setReferralSuccess] = useState<string | null>(null)
+  const [referralError, setReferralError] = useState<string | null>(null)
+  const [appliedCodes, setAppliedCodes] = useState<string[]>([])
 
   const hasResume = resumeText.trim().length > 0
+
+  const handleApplyReferral = useCallback(async () => {
+    const code = referralCode.trim().toUpperCase()
+    if (!code) return
+
+    if (appliedCodes.includes(code)) {
+      setReferralError("This referral code has already been used")
+      setTimeout(() => setReferralError(null), 3000)
+      return
+    }
+
+    setReferralLoading(true)
+    setReferralSuccess(null)
+    setReferralError(null)
+
+    const result = await verifyReferralCode(code)
+
+    if (result.success && result.quotaAdded) {
+      setFreeQuota((prev) => prev + result.quotaAdded!)
+      setAppliedCodes((prev) => [...prev, code])
+      setReferralSuccess(
+        `Referral code applied. +${result.quotaAdded} applications added.`
+      )
+      setReferralCode("")
+    } else {
+      setReferralError(result.error || "Invalid referral code")
+      setTimeout(() => setReferralError(null), 3000)
+    }
+
+    setReferralLoading(false)
+  }, [referralCode, appliedCodes])
 
   return (
     <>
@@ -158,6 +213,56 @@ function SetupState({ onContinue }: { onContinue: () => void }) {
               <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
                 Without an API key, Y.EAA uses a free quota of {freeQuota} applications.
               </p>
+            </div>
+          )}
+        </div>
+
+        {/* Referral Code */}
+        <div className="border-b border-border px-5 py-5">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            Referral Code (Internal Testing)
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Input
+              type="text"
+              value={referralCode}
+              onChange={(e) => {
+                setReferralCode(e.target.value)
+                if (referralSuccess) setReferralSuccess(null)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !referralLoading) handleApplyReferral()
+              }}
+              placeholder="Enter referral code"
+              disabled={referralLoading}
+              className="h-9 flex-1 border-border bg-transparent text-sm placeholder:text-muted-foreground"
+            />
+            <Button
+              variant="outline"
+              className="h-9 shrink-0 border-border bg-transparent px-4 text-xs font-medium text-foreground hover:bg-secondary"
+              onClick={handleApplyReferral}
+              disabled={referralLoading || referralCode.trim().length === 0}
+            >
+              {referralLoading ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+              ) : (
+                "Apply"
+              )}
+            </Button>
+          </div>
+
+          {/* Success feedback */}
+          {referralSuccess && (
+            <p className="mt-2 text-[10px] leading-relaxed text-[#16a34a]">
+              {referralSuccess}
+            </p>
+          )}
+
+          {/* Error toast (inline) */}
+          {referralError && (
+            <div className="mt-2 flex items-center gap-1.5 border border-destructive/20 bg-destructive/5 px-2.5 py-1.5">
+              <AlertCircle className="h-3 w-3 shrink-0 text-destructive" strokeWidth={1.5} />
+              <p className="text-[10px] text-destructive">{referralError}</p>
             </div>
           )}
         </div>
