@@ -17,7 +17,6 @@ import {
   FileText,
   Key,
   ChevronDown,
-  ChevronUp,
   AlertCircle,
   Loader2,
   Check,
@@ -89,13 +88,11 @@ async function verifyReferralCode(
 /* ─── Mock: Resume Analysis ───────────────────────────── */
 
 const ANALYSIS_LINES = [
-  "Parsing resume structure...",
-  "Extracting experience timeline...",
-  "Mapping skills to market taxonomy...",
-  "Analyzing career trajectory...",
-  "Identifying target roles...",
-  "Cross-referencing with active listings...",
-  "Generating role recommendations...",
+  "Parsing resume structure\u2026",
+  "Extracting experience timeline\u2026",
+  "Mapping skills to market taxonomy\u2026",
+  "Analyzing career trajectory\u2026",
+  "Identifying target roles\u2026",
 ]
 
 const MOCK_ROLES = [
@@ -119,8 +116,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   // Step 1 data
   const [resumeText, setResumeText] = useState("")
   const [apiKey, setApiKey] = useState("")
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [healthCheck, setHealthCheck] = useState<"idle" | "checking" | "valid" | "invalid">("idle")
+  const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle")
 
   // Step 2 data
   const [analysisLog, setAnalysisLog] = useState<string[]>([])
@@ -139,18 +135,30 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
   const hasResume = resumeText.trim().length > 0
 
-  /* ─── Step 1 Validation ─────────────────────────────── */
+  /* ─── Step 1: API Key Validation ────────────────────── */
 
-  const handleValidate = useCallback(async () => {
-    if (!hasResume) return
-    setHealthCheck("checking")
+  const handleValidateKey = useCallback(async () => {
+    if (!apiKey.trim()) return
+    setKeyStatus("checking")
     await new Promise((r) => setTimeout(r, 1500))
-    setHealthCheck("valid")
-    setSteps((prev) => ({ ...prev, step1: "completed", step2: "in-progress" }))
-    setActiveStep(2)
-  }, [hasResume])
+    // Mock: any key starting with "sk-" is valid
+    if (apiKey.startsWith("sk-") && apiKey.length > 5) {
+      setKeyStatus("valid")
+    } else {
+      setKeyStatus("invalid")
+    }
+  }, [apiKey])
 
-  /* ─── Step 1 Reopen (Invalidates Step 2) ────────────── */
+  /* ─── Step 1: Implicit completion check ─────────────── */
+
+  useEffect(() => {
+    if (keyStatus === "valid" && hasResume && steps.step1 === "in-progress") {
+      setSteps((prev) => ({ ...prev, step1: "completed", step2: "in-progress" }))
+      setActiveStep(2)
+    }
+  }, [keyStatus, hasResume, steps.step1])
+
+  /* ─── Step 1 Reopen (Invalidates downstream) ───────── */
 
   const handleReopenStep1 = useCallback(() => {
     setActiveStep(1)
@@ -159,7 +167,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
       step2: steps.step2 !== "not-started" ? "invalidated" : "not-started",
       step3: steps.step3 !== "not-started" ? "invalidated" : "not-started",
     })
-    setHealthCheck("idle")
+    setKeyStatus("idle")
     setAnalysisLog([])
     setRoles([])
     setSelectedRole(null)
@@ -209,7 +217,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   /* ─── Step 3 Go ─────────────────────────────────────── */
 
   const handleGo = useCallback(() => {
-    // In production: opens Chrome Tab Group labeled by target job position
     setSteps((prev) => ({ ...prev, step3: "completed" }))
   }, [])
 
@@ -242,95 +249,89 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         side="right"
         className="flex w-[380px] flex-col border-l border-border bg-background p-0 sm:w-[380px]"
       >
-        {/* Header */}
+        {/* ─── Header (Global) ───────────────────────────── */}
         <div className="shrink-0 border-b border-border px-5 py-4">
           <SheetHeader className="space-y-0">
-            <div className="flex items-baseline gap-1.5">
-              <SheetTitle className="text-sm font-semibold text-foreground">
-                Y.EAA
-              </SheetTitle>
-              <span className="text-[10px] text-muted-foreground">Extension</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-baseline gap-1.5">
+                <SheetTitle className="text-sm font-semibold text-foreground">
+                  Y.EAA
+                </SheetTitle>
+                <span className="text-[10px] text-muted-foreground">LinkedIn Easy Apply Assistant</span>
+              </div>
+              {/* Quota (clickable) */}
+              <button
+                type="button"
+                className="flex items-center gap-1.5"
+                onClick={() => setQuotaTrayOpen(!quotaTrayOpen)}
+              >
+                <span className="font-mono text-[11px] font-medium text-foreground">
+                  {quota}
+                </span>
+                <span className="text-[10px] text-muted-foreground">applications remaining</span>
+                <span className="ml-0.5 text-sm text-muted-foreground">+</span>
+              </button>
             </div>
           </SheetHeader>
         </div>
 
-        {/* Persistent Quota Bar */}
-        <div className="shrink-0 border-b border-border">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between px-5 py-3"
-            onClick={() => setQuotaTrayOpen(!quotaTrayOpen)}
-          >
-            <div className="flex items-center gap-2">
-              <div className="flex h-5 items-center rounded-sm bg-secondary px-2">
-                <span className="font-mono text-[11px] font-medium text-foreground">
-                  {quota}
-                </span>
-              </div>
-              <span className="text-[11px] text-muted-foreground">applications remaining</span>
-            </div>
-            <ChevronDown
-              className={cn(
-                "h-3 w-3 text-muted-foreground transition-transform duration-200",
-                quotaTrayOpen && "rotate-180"
-              )}
-              strokeWidth={1.5}
-            />
-          </button>
-
-          <AnimatePresence>
-            {quotaTrayOpen && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.2, ease: "easeInOut" }}
-                className="overflow-hidden"
-              >
-                <div className="border-t border-border px-5 pb-4 pt-3">
-                  <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
-                    Referral Code
-                  </p>
-                  <div className="mt-2 flex gap-2">
-                    <Input
-                      type="text"
-                      value={referralCode}
-                      onChange={(e) => setReferralCode(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !referralLoading) handleApplyReferral()
-                      }}
-                      placeholder="Enter code"
-                      disabled={referralLoading}
-                      className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
-                    />
-                    <Button
-                      variant="outline"
-                      className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
-                      onClick={handleApplyReferral}
-                      disabled={referralLoading || referralCode.trim().length === 0}
-                    >
-                      {referralLoading ? (
-                        <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
-                      ) : (
-                        "Apply"
-                      )}
-                    </Button>
-                  </div>
-                  {referralError && (
-                    <p className="mt-1.5 text-[10px] text-destructive">{referralError}</p>
-                  )}
+        {/* ─── Quota Tray (expanded on click) ────────────── */}
+        <AnimatePresence>
+          {quotaTrayOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="shrink-0 overflow-hidden border-b border-border"
+            >
+              <div className="px-5 pb-4 pt-3">
+                <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
+                  Referral code
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !referralLoading) handleApplyReferral()
+                    }}
+                    placeholder="Enter code"
+                    disabled={referralLoading}
+                    className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
+                  />
+                  <Button
+                    variant="outline"
+                    className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                    onClick={handleApplyReferral}
+                    disabled={referralLoading || referralCode.trim().length === 0}
+                  >
+                    {referralLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      "Apply"
+                    )}
+                  </Button>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                {referralError && (
+                  <p className="mt-1.5 text-[10px] text-destructive">{referralError}</p>
+                )}
+                <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                  Adds applications to your remaining quota.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* Accordion Steps */}
+        {/* ─── Accordion Steps ───────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
-          {/* ─── Step 1: Setup & Validation ─────────────── */}
+
+          {/* ─── Step 1: PREPARE ─────────────────────────── */}
           <AccordionStep
             number={1}
-            title="Setup & Validation"
+            title="Prepare"
             status={steps.step1}
             isActive={activeStep === 1}
             onToggle={() => {
@@ -339,106 +340,92 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             }}
             canToggle={steps.step1 === "completed" || steps.step1 === "in-progress"}
           >
-            {/* Resume */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] text-muted-foreground">Resume</p>
-                <button
-                  type="button"
-                  className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+            {/* API Key */}
+            <div className="space-y-2">
+              <p className="text-[11px] text-muted-foreground">API Key</p>
+              <p className="text-[10px] text-muted-foreground">LLM API key</p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
+                  <Input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value)
+                      if (keyStatus !== "idle") setKeyStatus("idle")
+                    }}
+                    placeholder="sk-\u2026"
+                    className="h-8 border-border bg-transparent pl-8 text-sm placeholder:text-muted-foreground"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                  onClick={handleValidateKey}
+                  disabled={!apiKey.trim() || keyStatus === "checking"}
                 >
-                  <Upload className="h-2.5 w-2.5" strokeWidth={1.5} />
-                  Upload PDF
-                </button>
+                  {keyStatus === "checking" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                  ) : (
+                    "Validate"
+                  )}
+                </Button>
               </div>
+              {keyStatus === "checking" && (
+                <p className="text-[10px] text-muted-foreground">{"Validating connection\u2026"}</p>
+              )}
+              {keyStatus === "valid" && (
+                <div className="flex items-center gap-1.5">
+                  <Check className="h-3 w-3 text-[#16a34a]" strokeWidth={2} />
+                  <p className="text-[10px] text-[#16a34a]">Key verified</p>
+                </div>
+              )}
+              {keyStatus === "invalid" && (
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="h-3 w-3 text-destructive" strokeWidth={1.5} />
+                  <p className="text-[10px] text-destructive">Invalid key. Please check and try again.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Source material */}
+            <div className="mt-5 space-y-2">
+              <p className="text-[11px] text-muted-foreground">Source material</p>
+              <p className="text-[10px] text-muted-foreground">
+                Provide source material to help Y.EAA understand your background.
+              </p>
               <Textarea
                 value={resumeText}
                 onChange={(e) => setResumeText(e.target.value)}
-                placeholder="Paste resume as plain text, or upload above."
+                placeholder="Paste text here"
                 className="min-h-[100px] resize-none border-border bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground focus:border-primary"
               />
+              <p className="text-center text-[10px] text-muted-foreground">or</p>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 border border-dashed border-border py-3 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+              >
+                <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
+                Upload files
+              </button>
+              <p className="text-center text-[10px] text-muted-foreground">
+                PDF, DOC, or plain text
+              </p>
               {hasResume && (
                 <div className="flex items-center gap-1.5">
                   <FileText className="h-3 w-3 text-muted-foreground" strokeWidth={1.5} />
                   <span className="text-[10px] text-muted-foreground">
-                    {resumeText.split(/\s+/).length} words
+                    {resumeText.split(/\s+/).length} words loaded
                   </span>
-                </div>
-              )}
-            </div>
-
-            {/* API Key */}
-            <div className="mt-4">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between"
-                onClick={() => setShowApiKey(!showApiKey)}
-              >
-                <p className="text-[11px] text-muted-foreground">LLM API Key</p>
-                <span className="text-[10px] text-muted-foreground">Optional</span>
-              </button>
-              <AnimatePresence>
-                {showApiKey && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-2">
-                      <div className="relative">
-                        <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
-                        <Input
-                          type="password"
-                          value={apiKey}
-                          onChange={(e) => setApiKey(e.target.value)}
-                          placeholder="sk-..."
-                          className="h-8 border-border bg-transparent pl-8 text-sm placeholder:text-muted-foreground"
-                        />
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Health Check + Validate */}
-            <div className="mt-5">
-              {healthCheck === "idle" && (
-                <Button
-                  className="h-9 w-full bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
-                  onClick={handleValidate}
-                  disabled={!hasResume}
-                >
-                  Validate
-                </Button>
-              )}
-              {healthCheck === "checking" && (
-                <div className="flex items-center gap-2 py-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" strokeWidth={1.5} />
-                  <span className="text-xs text-muted-foreground">Validating...</span>
-                </div>
-              )}
-              {healthCheck === "valid" && (
-                <div className="flex items-center gap-2 py-2">
-                  <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
-                  <span className="text-xs text-[#16a34a]">Validated</span>
-                </div>
-              )}
-              {healthCheck === "invalid" && (
-                <div className="flex items-center gap-2 py-2">
-                  <AlertCircle className="h-3.5 w-3.5 text-destructive" strokeWidth={1.5} />
-                  <span className="text-xs text-destructive">Validation failed. Check resume format.</span>
                 </div>
               )}
             </div>
           </AccordionStep>
 
-          {/* ─── Step 2: Analysis & Intent ──────────────── */}
+          {/* ─── Step 2: SELECT ──────────────────────────── */}
           <AccordionStep
             number={2}
-            title="Analysis & Intent"
+            title="Select"
             status={steps.step2}
             isActive={activeStep === 2}
             onToggle={() => {
@@ -448,33 +435,38 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             }}
             canToggle={steps.step2 === "completed" || steps.step2 === "in-progress"}
           >
-            {/* Terminal-style log feed */}
-            <div className="rounded-sm bg-[#0a0a0a] p-3">
-              <div className="max-h-[140px] space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed">
-                {analysisLog.map((line, i) => (
-                  <motion.div
-                    key={`log-${i}`}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="text-[#a3a3a3]"
-                  >
-                    <span className="text-[#525252]">{'>'}</span> {line}
-                  </motion.div>
-                ))}
-                {!analysisComplete && steps.step2 === "in-progress" && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#002d72]" />
-                  </div>
-                )}
+            {/* System activity (background, secondary) */}
+            <div className="space-y-2">
+              <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
+                System activity
+              </p>
+              <div className="rounded-sm bg-[#fafafa] p-3">
+                <div className="max-h-[120px] space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed">
+                  {analysisLog.map((line, i) => (
+                    <motion.div
+                      key={`log-${i}`}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="text-muted-foreground"
+                    >
+                      {line}
+                    </motion.div>
+                  ))}
+                  {!analysisComplete && steps.step2 === "in-progress" && (
+                    <div className="flex items-center gap-1.5">
+                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#002d72]" />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Role Cards */}
+            {/* Target role (Primary decision surface) */}
             {roles.length > 0 && (
-              <div className="mt-4 space-y-2">
+              <div className="mt-5 space-y-2">
                 <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
-                  Recommended Roles
+                  Recommended roles
                 </p>
                 {roles.map((role) => (
                   <motion.button
@@ -484,14 +476,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
                     className={cn(
-                      "flex w-full items-center justify-between border px-3 py-2.5 text-left transition-colors",
+                      "flex w-full items-center justify-between border px-4 py-3 text-left transition-colors",
                       selectedRole === role.title
                         ? "border-primary bg-primary/5"
                         : "border-border hover:border-foreground/20"
                     )}
                     onClick={() => handleSelectRole(role.title)}
                   >
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                       {selectedRole === role.title ? (
                         <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
                           <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={2.5} />
@@ -506,29 +498,41 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     </span>
                   </motion.button>
                 ))}
-                {!analysisComplete && (
-                  <p className="text-[10px] text-muted-foreground">
-                    Additional roles may appear...
-                  </p>
-                )}
               </div>
             )}
+
+            {/* Operating conditions */}
+            <div className="mt-5 space-y-1.5">
+              <p className="text-[10px] text-muted-foreground">
+                Y.EAA operates under the following conditions:
+              </p>
+              {[
+                "Works only inside your active LinkedIn tab",
+                "Does not auto-submit applications",
+                "No actions outside the current browser tab",
+              ].map((line) => (
+                <div key={line} className="flex items-start gap-2">
+                  <span className="mt-1.5 h-0.5 w-0.5 shrink-0 rounded-full bg-muted-foreground" />
+                  <p className="text-[10px] leading-relaxed text-muted-foreground">{line}</p>
+                </div>
+              ))}
+            </div>
 
             {/* Invalidated notice */}
             {steps.step2 === "invalidated" && (
               <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
                 <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
                 <p className="text-[10px] text-[#ca8a04]">
-                  Step 1 was modified. Re-validate to continue.
+                  Prepare was modified. Re-validate to continue.
                 </p>
               </div>
             )}
           </AccordionStep>
 
-          {/* ─── Step 3: Permission & Handover ─────────── */}
+          {/* ─── Step 3: GO APPLY ────────────────────────── */}
           <AccordionStep
             number={3}
-            title="Permission & Handover"
+            title="Go Apply"
             status={steps.step3}
             isActive={activeStep === 3}
             onToggle={() => {
@@ -538,31 +542,24 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             }}
             canToggle={steps.step3 === "in-progress" || steps.step3 === "completed"}
           >
+            {/* Ready state summary */}
             {selectedRole && (
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex h-5 items-center rounded-sm bg-primary/10 px-2">
-                  <span className="text-[11px] font-medium text-primary">{selectedRole}</span>
+              <div className="mb-4 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Target role:</span>
+                  <span className="text-[11px] font-medium text-foreground">{selectedRole}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Platform:</span>
+                  <span className="text-[11px] font-medium text-foreground">LinkedIn Easy Apply</span>
                 </div>
               </div>
             )}
 
-            <div className="space-y-3">
-              {[
-                "Operates inside your active LinkedIn tab only.",
-                "Does not auto-submit. You retain final control.",
-                "No actions outside the active browser tab.",
-              ].map((line) => (
-                <div key={line} className="flex items-start gap-2.5">
-                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-                  <p className="text-sm leading-relaxed text-foreground">{line}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Don't show again */}
+            {/* Confirmation */}
             <button
               type="button"
-              className="mt-5 flex items-center gap-2"
+              className="flex items-center gap-2"
               onClick={() => setDontShowAgain(!dontShowAgain)}
             >
               {dontShowAgain ? (
@@ -571,11 +568,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <Square className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
               )}
               <span className="text-xs text-muted-foreground">
-                {"Don't show again"}
+                {"Don't show this again"}
               </span>
             </button>
 
-            {/* Go CTA */}
+            {/* Primary action */}
             <div className="mt-5">
               {steps.step3 === "completed" ? (
                 <div className="flex items-center gap-2 py-2">
@@ -604,7 +601,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           </AccordionStep>
         </div>
 
-        {/* Bottom disclaimer */}
+        {/* ─── Footer (Global, Persistent) ───────────────── */}
         <div className="shrink-0 border-t border-border px-5 py-3">
           <p className="text-center text-[10px] text-muted-foreground">
             Y.EAA does not store credentials, cookies, or login sessions.
