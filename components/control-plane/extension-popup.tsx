@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import React from "react"
+
+import { useState, useCallback, useEffect, useRef } from "react"
 import {
   Sheet,
   SheetContent,
@@ -14,77 +16,61 @@ import {
   Upload,
   FileText,
   Key,
-  ArrowRight,
-  CheckSquare,
-  Square,
-  Play,
-  Pause,
-  StopCircle,
-  RotateCcw,
-  Pencil,
   ChevronDown,
   ChevronUp,
   AlertCircle,
   Loader2,
+  Check,
+  Circle,
+  CheckSquare,
+  Square,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { motion, AnimatePresence } from "framer-motion"
+
+/* ─── Types ───────────────────────────────────────────── */
+
+type StepStatus = "not-started" | "in-progress" | "completed" | "invalidated"
+
+interface StepState {
+  step1: StepStatus
+  step2: StepStatus
+  step3: StepStatus
+}
 
 interface ExtensionPopupProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-type ExtensionState =
-  | "setup"
-  | "consent"
-  | "ready"
-  | "running"
-  | "paused"
-  | "completed"
+/* ─── Status Color Map ────────────────────────────────── */
 
-export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
-  const [state, setState] = useState<ExtensionState>("setup")
+function statusDot(status: StepStatus) {
+  switch (status) {
+    case "completed":
+      return "bg-[#16a34a]"
+    case "in-progress":
+      return "bg-[#002d72]"
+    case "invalidated":
+      return "bg-[#ca8a04]"
+    case "not-started":
+    default:
+      return "bg-[#ca8a04]"
+  }
+}
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-[380px] border-l border-border bg-background p-0 sm:w-[380px]"
-      >
-        {/* Extension Header */}
-        <div className="border-b border-border px-5 py-4">
-          <SheetHeader className="space-y-0">
-            <div className="flex items-baseline gap-1.5">
-              <SheetTitle className="text-sm font-semibold text-foreground">
-                Y.EAA Extension
-              </SheetTitle>
-              <span className="text-[10px] text-muted-foreground">MVP</span>
-            </div>
-          </SheetHeader>
-        </div>
-
-        {/* State Content */}
-        <div className="flex h-[calc(100%-57px)] flex-col">
-          {state === "setup" && <SetupState onContinue={() => setState("consent")} />}
-          {state === "consent" && (
-            <ConsentState
-              onAccept={() => setState("ready")}
-              onBack={() => setState("setup")}
-            />
-          )}
-          {state === "ready" && <ReadyState onStart={() => setState("running")} onEditSetup={() => setState("setup")} />}
-          {state === "running" && <RunningState onPause={() => setState("paused")} />}
-          {state === "paused" && (
-            <PausedState
-              onResume={() => setState("running")}
-              onStop={() => setState("completed")}
-            />
-          )}
-          {state === "completed" && <CompletedState onReset={() => setState("setup")} />}
-        </div>
-      </SheetContent>
-    </Sheet>
-  )
+function statusBorder(status: StepStatus) {
+  switch (status) {
+    case "completed":
+      return "border-l-[#16a34a]"
+    case "in-progress":
+      return "border-l-[#002d72]"
+    case "invalidated":
+      return "border-l-[#ca8a04]"
+    case "not-started":
+    default:
+      return "border-l-[#e5e5e5]"
+  }
 }
 
 /* ─── Mock: Referral Code Verification ────────────────── */
@@ -97,627 +83,604 @@ async function verifyReferralCode(
   if (validCodes.includes(code.trim().toUpperCase())) {
     return { success: true, quotaAdded: 5 }
   }
-  if (code.trim().length === 0) {
-    return { success: false, error: "Invalid referral code" }
-  }
-  return { success: false, error: "This referral code has already been used" }
+  return { success: false, error: "Invalid or already used" }
 }
 
-/* ─── STATE 0: Setup ──────────────────────────────────── */
+/* ─── Mock: Resume Analysis ───────────────────────────── */
 
-function SetupState({ onContinue }: { onContinue: () => void }) {
+const ANALYSIS_LINES = [
+  "Parsing resume structure...",
+  "Extracting experience timeline...",
+  "Mapping skills to market taxonomy...",
+  "Analyzing career trajectory...",
+  "Identifying target roles...",
+  "Cross-referencing with active listings...",
+  "Generating role recommendations...",
+]
+
+const MOCK_ROLES = [
+  { title: "Senior Software Engineer", confidence: 0.94 },
+  { title: "Staff Engineer", confidence: 0.87 },
+  { title: "Engineering Manager", confidence: 0.72 },
+]
+
+/* ─── Main Component ──────────────────────────────────── */
+
+export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
+  const [quota, setQuota] = useState(5)
+  const [quotaTrayOpen, setQuotaTrayOpen] = useState(false)
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1)
+  const [steps, setSteps] = useState<StepState>({
+    step1: "in-progress",
+    step2: "not-started",
+    step3: "not-started",
+  })
+
+  // Step 1 data
   const [resumeText, setResumeText] = useState("")
   const [apiKey, setApiKey] = useState("")
   const [showApiKey, setShowApiKey] = useState(false)
-  const [freeQuota, setFreeQuota] = useState(5)
+  const [healthCheck, setHealthCheck] = useState<"idle" | "checking" | "valid" | "invalid">("idle")
 
-  // Referral code state
+  // Step 2 data
+  const [analysisLog, setAnalysisLog] = useState<string[]>([])
+  const [roles, setRoles] = useState<typeof MOCK_ROLES>([])
+  const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const [analysisComplete, setAnalysisComplete] = useState(false)
+
+  // Step 3 data
+  const [dontShowAgain, setDontShowAgain] = useState(false)
+
+  // Referral
   const [referralCode, setReferralCode] = useState("")
   const [referralLoading, setReferralLoading] = useState(false)
-  const [referralSuccess, setReferralSuccess] = useState<string | null>(null)
   const [referralError, setReferralError] = useState<string | null>(null)
   const [appliedCodes, setAppliedCodes] = useState<string[]>([])
 
   const hasResume = resumeText.trim().length > 0
 
+  /* ─── Step 1 Validation ─────────────────────────────── */
+
+  const handleValidate = useCallback(async () => {
+    if (!hasResume) return
+    setHealthCheck("checking")
+    await new Promise((r) => setTimeout(r, 1500))
+    setHealthCheck("valid")
+    setSteps((prev) => ({ ...prev, step1: "completed", step2: "in-progress" }))
+    setActiveStep(2)
+  }, [hasResume])
+
+  /* ─── Step 1 Reopen (Invalidates Step 2) ────────────── */
+
+  const handleReopenStep1 = useCallback(() => {
+    setActiveStep(1)
+    setSteps({
+      step1: "in-progress",
+      step2: steps.step2 !== "not-started" ? "invalidated" : "not-started",
+      step3: steps.step3 !== "not-started" ? "invalidated" : "not-started",
+    })
+    setHealthCheck("idle")
+    setAnalysisLog([])
+    setRoles([])
+    setSelectedRole(null)
+    setAnalysisComplete(false)
+  }, [steps])
+
+  /* ─── Step 2 Analysis (auto-starts) ─────────────────── */
+
+  const analysisRef = useRef(false)
+
+  useEffect(() => {
+    if (steps.step2 !== "in-progress" || analysisRef.current) return
+    analysisRef.current = true
+
+    let idx = 0
+    const logInterval = setInterval(() => {
+      if (idx < ANALYSIS_LINES.length) {
+        setAnalysisLog((prev) => [...prev, ANALYSIS_LINES[idx]])
+        idx++
+      } else {
+        clearInterval(logInterval)
+      }
+    }, 800)
+
+    // Surface roles progressively
+    const roleTimeouts = MOCK_ROLES.map((role, i) =>
+      setTimeout(() => {
+        setRoles((prev) => [...prev, role])
+        if (i === MOCK_ROLES.length - 1) {
+          setAnalysisComplete(true)
+        }
+      }, 3000 + i * 1500)
+    )
+
+    return () => {
+      clearInterval(logInterval)
+      for (const t of roleTimeouts) clearTimeout(t)
+    }
+  }, [steps.step2])
+
+  const handleSelectRole = useCallback((title: string) => {
+    setSelectedRole(title)
+    setSteps((prev) => ({ ...prev, step2: "completed", step3: "in-progress" }))
+    setActiveStep(3)
+  }, [])
+
+  /* ─── Step 3 Go ─────────────────────────────────────── */
+
+  const handleGo = useCallback(() => {
+    // In production: opens Chrome Tab Group labeled by target job position
+    setSteps((prev) => ({ ...prev, step3: "completed" }))
+  }, [])
+
+  /* ─── Referral ──────────────────────────────────────── */
+
   const handleApplyReferral = useCallback(async () => {
     const code = referralCode.trim().toUpperCase()
-    if (!code) return
-
-    if (appliedCodes.includes(code)) {
-      setReferralError("This referral code has already been used")
+    if (!code || appliedCodes.includes(code)) {
+      setReferralError("Already applied")
       setTimeout(() => setReferralError(null), 3000)
       return
     }
-
     setReferralLoading(true)
-    setReferralSuccess(null)
     setReferralError(null)
-
     const result = await verifyReferralCode(code)
-
     if (result.success && result.quotaAdded) {
-      setFreeQuota((prev) => prev + result.quotaAdded!)
+      setQuota((prev) => prev + result.quotaAdded!)
       setAppliedCodes((prev) => [...prev, code])
-      setReferralSuccess(
-        `Referral code applied. +${result.quotaAdded} applications added.`
-      )
       setReferralCode("")
     } else {
-      setReferralError(result.error || "Invalid referral code")
+      setReferralError(result.error || "Invalid")
       setTimeout(() => setReferralError(null), 3000)
     }
-
     setReferralLoading(false)
   }, [referralCode, appliedCodes])
 
   return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Resume Input */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Resume
-            </p>
-            <button
-              type="button"
-              className="flex items-center gap-1 text-[10px] text-primary hover:underline"
-            >
-              <Upload className="h-3 w-3" strokeWidth={1.5} />
-              Upload PDF
-            </button>
-          </div>
-          <Textarea
-            value={resumeText}
-            onChange={(e) => setResumeText(e.target.value)}
-            placeholder="Paste your resume as plain text, or upload a PDF above."
-            className="mt-3 min-h-[120px] resize-none border-border bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground focus:border-primary"
-          />
-          {hasResume && (
-            <div className="mt-2 flex items-center gap-1.5">
-              <FileText className="h-3 w-3 text-muted-foreground" strokeWidth={1.5} />
-              <span className="text-[10px] text-muted-foreground">
-                {resumeText.split(/\s+/).length} words loaded
-              </span>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-[380px] flex-col border-l border-border bg-background p-0 sm:w-[380px]"
+      >
+        {/* Header */}
+        <div className="shrink-0 border-b border-border px-5 py-4">
+          <SheetHeader className="space-y-0">
+            <div className="flex items-baseline gap-1.5">
+              <SheetTitle className="text-sm font-semibold text-foreground">
+                Y.EAA
+              </SheetTitle>
+              <span className="text-[10px] text-muted-foreground">Extension</span>
             </div>
-          )}
+          </SheetHeader>
         </div>
 
-        {/* API Key */}
-        <div className="border-b border-border px-5 py-5">
+        {/* Persistent Quota Bar */}
+        <div className="shrink-0 border-b border-border">
           <button
             type="button"
-            className="flex w-full items-center justify-between"
-            onClick={() => setShowApiKey(!showApiKey)}
+            className="flex w-full items-center justify-between px-5 py-3"
+            onClick={() => setQuotaTrayOpen(!quotaTrayOpen)}
           >
-            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              LLM API Key
-            </p>
-            <span className="text-xs text-muted-foreground">
-              Optional
-            </span>
-          </button>
-          {showApiKey && (
-            <div className="mt-3">
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="h-9 border-border bg-transparent pl-9 text-sm placeholder:text-muted-foreground"
-                />
-              </div>
-              <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-                Without an API key, Y.EAA uses a free quota of {freeQuota} applications.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Referral Code */}
-        <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-            Referral Code (Internal Testing)
-          </p>
-          <div className="mt-3 flex gap-2">
-            <Input
-              type="text"
-              value={referralCode}
-              onChange={(e) => {
-                setReferralCode(e.target.value)
-                if (referralSuccess) setReferralSuccess(null)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !referralLoading) handleApplyReferral()
-              }}
-              placeholder="Enter referral code"
-              disabled={referralLoading}
-              className="h-9 flex-1 border-border bg-transparent text-sm placeholder:text-muted-foreground"
-            />
-            <Button
-              variant="outline"
-              className="h-9 shrink-0 border-border bg-transparent px-4 text-xs font-medium text-foreground hover:bg-secondary"
-              onClick={handleApplyReferral}
-              disabled={referralLoading || referralCode.trim().length === 0}
-            >
-              {referralLoading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-              ) : (
-                "Apply"
-              )}
-            </Button>
-          </div>
-
-          {/* Success feedback */}
-          {referralSuccess && (
-            <p className="mt-2 text-[10px] leading-relaxed text-[#16a34a]">
-              {referralSuccess}
-            </p>
-          )}
-
-          {/* Error toast (inline) */}
-          {referralError && (
-            <div className="mt-2 flex items-center gap-1.5 border border-destructive/20 bg-destructive/5 px-2.5 py-1.5">
-              <AlertCircle className="h-3 w-3 shrink-0 text-destructive" strokeWidth={1.5} />
-              <p className="text-[10px] text-destructive">{referralError}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Quota Display */}
-        <div className="px-5 py-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Quota
-            </p>
-            {apiKey ? (
-              <span className="text-xs text-foreground">Using your API key</span>
-            ) : (
-              <span className="font-mono text-xs text-foreground">{freeQuota} remaining</span>
-            )}
-          </div>
-          {!apiKey && (
-            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-              Free applications remaining. Total, not per day.
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <p className="mb-3 text-[10px] leading-relaxed text-muted-foreground">
-          Y.EAA only works on LinkedIn job pages. Setup does not start any application.
-        </p>
-        <Button
-          className="h-9 w-full gap-2 bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
-          onClick={onContinue}
-          disabled={!hasResume}
-        >
-          Continue to LinkedIn Jobs
-          <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
-        </Button>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 1: Pre-LinkedIn Consent ────────────────────── */
-
-function ConsentState({
-  onAccept,
-  onBack,
-}: {
-  onAccept: () => void
-  onBack: () => void
-}) {
-  const [consented, setConsented] = useState(false)
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto px-5 py-6">
-        <h2 className="text-lg font-semibold tracking-normal text-foreground">
-          Before you continue
-        </h2>
-
-        <div className="mt-5 space-y-4">
-          {[
-            "Y.EAA operates only on LinkedIn pages you open.",
-            "It works only while you are logged into LinkedIn in this browser.",
-            "No passwords are stored.",
-            "No cookies are saved.",
-            "No actions happen outside this session.",
-          ].map((line) => (
-            <div key={line} className="flex items-start gap-3">
-              <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-              <p className="text-sm leading-relaxed text-foreground">{line}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-8 border-t border-border pt-5">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Y.EAA assists you only while you are logged into LinkedIn in this
-            browser tab. We do not store credentials, cookies, or login sessions.
-            All actions happen visibly during this session.
-          </p>
-        </div>
-
-        {/* Consent Checkbox */}
-        <button
-          type="button"
-          className="mt-6 flex items-start gap-3"
-          onClick={() => setConsented(!consented)}
-        >
-          {consented ? (
-            <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.5} />
-          ) : (
-            <Square className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-          )}
-          <span className="text-left text-sm leading-relaxed text-foreground">
-            I understand and want to continue
-          </span>
-        </button>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="h-9 flex-1 border-border bg-transparent text-xs font-medium text-foreground"
-            onClick={onBack}
-          >
-            Back
-          </Button>
-          <Button
-            className="h-9 flex-1 gap-2 bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
-            onClick={onAccept}
-            disabled={!consented}
-          >
-            Go to LinkedIn Jobs
-            <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </Button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 2: Ready (On LinkedIn, Idle) ────────────────── */
-
-function ReadyState({
-  onStart,
-  onEditSetup,
-}: {
-  onStart: () => void
-  onEditSetup: () => void
-}) {
-  const [resumeExpanded, setResumeExpanded] = useState(false)
-  const freeQuota = 5
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-success" />
-            <span className="text-sm font-medium text-foreground">Ready</span>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Open a job with Easy Apply to begin.
-          </p>
-        </div>
-
-        {/* Quota */}
-        <div className="border-b border-border px-5 py-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Quota
-            </span>
-            <span className="font-mono text-xs text-foreground">{freeQuota} remaining</span>
-          </div>
-        </div>
-
-        {/* Resume Summary */}
-        <div className="border-b border-border px-5 py-4">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between"
-            onClick={() => setResumeExpanded(!resumeExpanded)}
-          >
-            <span className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-              Resume
-            </span>
-            {resumeExpanded ? (
-              <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-            )}
-          </button>
-          {resumeExpanded && (
-            <div className="mt-3 border border-border p-3">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Alex Chen - Senior Software Engineer with 8+ years experience...
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <Button
-          className="h-10 w-full gap-2 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          onClick={onStart}
-        >
-          <Play className="h-3.5 w-3.5" strokeWidth={2} />
-          Start Easy Apply
-        </Button>
-        <div className="mt-3 flex justify-center gap-4">
-          <button
-            type="button"
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-            onClick={onEditSetup}
-          >
-            <Pencil className="h-3 w-3" strokeWidth={1.5} />
-            Edit Resume
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-            onClick={onEditSetup}
-          >
-            <Key className="h-3 w-3" strokeWidth={1.5} />
-            Edit Settings
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 3: Running ─────────────────────────────────── */
-
-function RunningState({ onPause }: { onPause: () => void }) {
-  const [current] = useState(2)
-  const total = 5
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-            <span className="text-sm font-medium text-foreground">Running</span>
-          </div>
-        </div>
-
-        {/* Progress */}
-        <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-            Progress
-          </p>
-          <div className="mt-3 flex items-baseline gap-1.5">
-            <span className="font-mono text-2xl font-semibold text-foreground">{current}</span>
-            <span className="text-sm text-muted-foreground">of {total}</span>
-          </div>
-
-          {/* Progress bar */}
-          <div className="mt-3 h-1 w-full bg-border">
-            <div
-              className="h-full bg-primary transition-all duration-500"
-              style={{ width: `${(current / total) * 100}%` }}
-            />
-          </div>
-
-          <p className="mt-3 text-sm text-muted-foreground">
-            Applying to Senior Software Engineer at Stripe...
-          </p>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-            Activity
-          </p>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-start gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-success" />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Staff Engineer at Figma - submitted
-              </p>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Senior Software Engineer at Stripe - in progress
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <Button
-          variant="outline"
-          className="h-10 w-full gap-2 border-border bg-transparent text-sm font-medium text-foreground"
-          onClick={onPause}
-        >
-          <Pause className="h-3.5 w-3.5" strokeWidth={2} />
-          Pause
-        </Button>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 4: Paused ──────────────────────────────────── */
-
-function PausedState({
-  onResume,
-  onStop,
-}: {
-  onResume: () => void
-  onStop: () => void
-}) {
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-warning" />
-            <span className="text-sm font-medium text-foreground">Paused</span>
-          </div>
-        </div>
-
-        {/* Confirmation */}
-        <div className="px-5 py-6">
-          <p className="text-sm leading-relaxed text-foreground">
-            Application paused. You can resume or stop the session.
-          </p>
-
-          <div className="mt-6 space-y-3 border-t border-border pt-5">
-            <div className="flex items-start gap-3">
-              <Play className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-              <div>
-                <p className="text-sm font-medium text-foreground">Resume</p>
-                <p className="text-xs text-muted-foreground">
-                  Restart from the current job.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <StopCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-              <div>
-                <p className="text-sm font-medium text-foreground">Stop</p>
-                <p className="text-xs text-muted-foreground">
-                  End this session. Shows summary.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="h-9 flex-1 gap-1.5 border-border bg-transparent text-xs font-medium text-foreground"
-            onClick={onStop}
-          >
-            <StopCircle className="h-3.5 w-3.5" strokeWidth={1.5} />
-            Stop
-          </Button>
-          <Button
-            className="h-9 flex-1 gap-1.5 bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
-            onClick={onResume}
-          >
-            <Play className="h-3.5 w-3.5" strokeWidth={2} />
-            Resume
-          </Button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 5: Completed / Stopped ─────────────────────── */
-
-function CompletedState({ onReset }: { onReset: () => void }) {
-  const attempted = 5
-  const submitted = 3
-  const skipped = 2
-  const quotaRemaining = 0
-
-  const skippedFields = [
-    "Cover letter field at Notion was unclear.",
-    "Salary expectation at Linear had unexpected format.",
-  ]
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">Session Complete</span>
-          </div>
-        </div>
-
-        {/* Summary */}
-        <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-            Summary
-          </p>
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Attempted</span>
-              <span className="font-mono text-sm text-foreground">{attempted}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Submitted</span>
-              <span className="font-mono text-sm text-foreground">{submitted}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Skipped</span>
-              <span className="font-mono text-sm text-foreground">{skipped}</span>
-            </div>
-            <div className="h-px bg-border" />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Quota remaining</span>
-              <span className="font-mono text-sm text-foreground">{quotaRemaining}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Skipped Details */}
-        {skippedFields.length > 0 && (
-          <div className="px-5 py-5">
             <div className="flex items-center gap-2">
-              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-              <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
-                Skipped Fields
-              </p>
+              <div className="flex h-5 items-center rounded-sm bg-secondary px-2">
+                <span className="font-mono text-[11px] font-medium text-foreground">
+                  {quota}
+                </span>
+              </div>
+              <span className="text-[11px] text-muted-foreground">applications remaining</span>
             </div>
-            <div className="mt-3 space-y-2">
-              {skippedFields.map((field) => (
-                <p key={field} className="text-xs leading-relaxed text-muted-foreground">
-                  {field}
+            <ChevronDown
+              className={cn(
+                "h-3 w-3 text-muted-foreground transition-transform duration-200",
+                quotaTrayOpen && "rotate-180"
+              )}
+              strokeWidth={1.5}
+            />
+          </button>
+
+          <AnimatePresence>
+            {quotaTrayOpen && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.2, ease: "easeInOut" }}
+                className="overflow-hidden"
+              >
+                <div className="border-t border-border px-5 pb-4 pt-3">
+                  <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
+                    Referral Code
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <Input
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !referralLoading) handleApplyReferral()
+                      }}
+                      placeholder="Enter code"
+                      disabled={referralLoading}
+                      className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
+                    />
+                    <Button
+                      variant="outline"
+                      className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                      onClick={handleApplyReferral}
+                      disabled={referralLoading || referralCode.trim().length === 0}
+                    >
+                      {referralLoading ? (
+                        <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                      ) : (
+                        "Apply"
+                      )}
+                    </Button>
+                  </div>
+                  {referralError && (
+                    <p className="mt-1.5 text-[10px] text-destructive">{referralError}</p>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Accordion Steps */}
+        <div className="flex-1 overflow-y-auto">
+          {/* ─── Step 1: Setup & Validation ─────────────── */}
+          <AccordionStep
+            number={1}
+            title="Setup & Validation"
+            status={steps.step1}
+            isActive={activeStep === 1}
+            onToggle={() => {
+              if (activeStep === 1) return
+              if (steps.step1 === "completed") handleReopenStep1()
+            }}
+            canToggle={steps.step1 === "completed" || steps.step1 === "in-progress"}
+          >
+            {/* Resume */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] text-muted-foreground">Resume</p>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-[10px] text-primary hover:underline"
+                >
+                  <Upload className="h-2.5 w-2.5" strokeWidth={1.5} />
+                  Upload PDF
+                </button>
+              </div>
+              <Textarea
+                value={resumeText}
+                onChange={(e) => setResumeText(e.target.value)}
+                placeholder="Paste resume as plain text, or upload above."
+                className="min-h-[100px] resize-none border-border bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground focus:border-primary"
+              />
+              {hasResume && (
+                <div className="flex items-center gap-1.5">
+                  <FileText className="h-3 w-3 text-muted-foreground" strokeWidth={1.5} />
+                  <span className="text-[10px] text-muted-foreground">
+                    {resumeText.split(/\s+/).length} words
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* API Key */}
+            <div className="mt-4">
+              <button
+                type="button"
+                className="flex w-full items-center justify-between"
+                onClick={() => setShowApiKey(!showApiKey)}
+              >
+                <p className="text-[11px] text-muted-foreground">LLM API Key</p>
+                <span className="text-[10px] text-muted-foreground">Optional</span>
+              </button>
+              <AnimatePresence>
+                {showApiKey && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-2">
+                      <div className="relative">
+                        <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
+                        <Input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="sk-..."
+                          className="h-8 border-border bg-transparent pl-8 text-sm placeholder:text-muted-foreground"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Health Check + Validate */}
+            <div className="mt-5">
+              {healthCheck === "idle" && (
+                <Button
+                  className="h-9 w-full bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  onClick={handleValidate}
+                  disabled={!hasResume}
+                >
+                  Validate
+                </Button>
+              )}
+              {healthCheck === "checking" && (
+                <div className="flex items-center gap-2 py-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" strokeWidth={1.5} />
+                  <span className="text-xs text-muted-foreground">Validating...</span>
+                </div>
+              )}
+              {healthCheck === "valid" && (
+                <div className="flex items-center gap-2 py-2">
+                  <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
+                  <span className="text-xs text-[#16a34a]">Validated</span>
+                </div>
+              )}
+              {healthCheck === "invalid" && (
+                <div className="flex items-center gap-2 py-2">
+                  <AlertCircle className="h-3.5 w-3.5 text-destructive" strokeWidth={1.5} />
+                  <span className="text-xs text-destructive">Validation failed. Check resume format.</span>
+                </div>
+              )}
+            </div>
+          </AccordionStep>
+
+          {/* ─── Step 2: Analysis & Intent ──────────────── */}
+          <AccordionStep
+            number={2}
+            title="Analysis & Intent"
+            status={steps.step2}
+            isActive={activeStep === 2}
+            onToggle={() => {
+              if (steps.step2 === "completed" || steps.step2 === "in-progress") {
+                setActiveStep(2)
+              }
+            }}
+            canToggle={steps.step2 === "completed" || steps.step2 === "in-progress"}
+          >
+            {/* Terminal-style log feed */}
+            <div className="rounded-sm bg-[#0a0a0a] p-3">
+              <div className="max-h-[140px] space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed">
+                {analysisLog.map((line, i) => (
+                  <motion.div
+                    key={`log-${i}`}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="text-[#a3a3a3]"
+                  >
+                    <span className="text-[#525252]">{'>'}</span> {line}
+                  </motion.div>
+                ))}
+                {!analysisComplete && steps.step2 === "in-progress" && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-[#002d72]" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Role Cards */}
+            {roles.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
+                  Recommended Roles
                 </p>
+                {roles.map((role) => (
+                  <motion.button
+                    key={role.title}
+                    type="button"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className={cn(
+                      "flex w-full items-center justify-between border px-3 py-2.5 text-left transition-colors",
+                      selectedRole === role.title
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-foreground/20"
+                    )}
+                    onClick={() => handleSelectRole(role.title)}
+                  >
+                    <div className="flex items-center gap-2">
+                      {selectedRole === role.title ? (
+                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
+                          <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={2.5} />
+                        </div>
+                      ) : (
+                        <Circle className="h-4 w-4 text-muted-foreground" strokeWidth={1} />
+                      )}
+                      <span className="text-sm text-foreground">{role.title}</span>
+                    </div>
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {Math.round(role.confidence * 100)}%
+                    </span>
+                  </motion.button>
+                ))}
+                {!analysisComplete && (
+                  <p className="text-[10px] text-muted-foreground">
+                    Additional roles may appear...
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Invalidated notice */}
+            {steps.step2 === "invalidated" && (
+              <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
+                <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
+                <p className="text-[10px] text-[#ca8a04]">
+                  Step 1 was modified. Re-validate to continue.
+                </p>
+              </div>
+            )}
+          </AccordionStep>
+
+          {/* ─── Step 3: Permission & Handover ─────────── */}
+          <AccordionStep
+            number={3}
+            title="Permission & Handover"
+            status={steps.step3}
+            isActive={activeStep === 3}
+            onToggle={() => {
+              if (steps.step3 === "in-progress" || steps.step3 === "completed") {
+                setActiveStep(3)
+              }
+            }}
+            canToggle={steps.step3 === "in-progress" || steps.step3 === "completed"}
+          >
+            {selectedRole && (
+              <div className="mb-4 flex items-center gap-2">
+                <div className="flex h-5 items-center rounded-sm bg-primary/10 px-2">
+                  <span className="text-[11px] font-medium text-primary">{selectedRole}</span>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3">
+              {[
+                "Operates inside your active LinkedIn tab only.",
+                "Does not auto-submit. You retain final control.",
+                "No actions outside the active browser tab.",
+              ].map((line) => (
+                <div key={line} className="flex items-start gap-2.5">
+                  <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                  <p className="text-sm leading-relaxed text-foreground">{line}</p>
+                </div>
               ))}
             </div>
-            <p className="mt-4 text-[10px] leading-relaxed text-muted-foreground">
-              Some fields were skipped due to unclear format. You may update your resume or answers and try again.
-            </p>
-          </div>
-        )}
-      </div>
 
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <Button
-          variant="outline"
-          className="h-9 w-full gap-2 border-border bg-transparent text-xs font-medium text-foreground"
-          onClick={onReset}
-        >
-          <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} />
-          New Session
-        </Button>
-        <p className="mt-3 text-center text-[10px] text-muted-foreground">
-          This UI is generated as a working draft. Final behavior will be reviewed and refined.
-        </p>
-      </div>
-    </>
+            {/* Don't show again */}
+            <button
+              type="button"
+              className="mt-5 flex items-center gap-2"
+              onClick={() => setDontShowAgain(!dontShowAgain)}
+            >
+              {dontShowAgain ? (
+                <CheckSquare className="h-3.5 w-3.5 text-primary" strokeWidth={1.5} />
+              ) : (
+                <Square className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
+              )}
+              <span className="text-xs text-muted-foreground">
+                {"Don't show again"}
+              </span>
+            </button>
+
+            {/* Go CTA */}
+            <div className="mt-5">
+              {steps.step3 === "completed" ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
+                  <span className="text-xs text-[#16a34a]">Tab group opened</span>
+                </div>
+              ) : (
+                <Button
+                  className="h-10 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  onClick={handleGo}
+                >
+                  System ready. Proceed.
+                </Button>
+              )}
+            </div>
+
+            {/* Invalidated notice */}
+            {steps.step3 === "invalidated" && (
+              <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
+                <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
+                <p className="text-[10px] text-[#ca8a04]">
+                  Previous steps were modified. Complete them to proceed.
+                </p>
+              </div>
+            )}
+          </AccordionStep>
+        </div>
+
+        {/* Bottom disclaimer */}
+        <div className="shrink-0 border-t border-border px-5 py-3">
+          <p className="text-center text-[10px] text-muted-foreground">
+            Y.EAA does not store credentials, cookies, or login sessions.
+          </p>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+/* ─── Accordion Step Component ────────────────────────── */
+
+function AccordionStep({
+  number,
+  title,
+  status,
+  isActive,
+  onToggle,
+  canToggle,
+  children,
+}: {
+  number: number
+  title: string
+  status: StepStatus
+  isActive: boolean
+  onToggle: () => void
+  canToggle: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      className={cn(
+        "border-b border-border border-l-2 transition-colors duration-200",
+        statusBorder(status)
+      )}
+    >
+      {/* Step header */}
+      <button
+        type="button"
+        className={cn(
+          "flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors",
+          canToggle ? "hover:bg-secondary/50" : "cursor-default",
+          isActive && "bg-secondary/30"
+        )}
+        onClick={onToggle}
+        disabled={!canToggle}
+      >
+        <div className={cn("h-2 w-2 shrink-0 rounded-full", statusDot(status))} />
+        <div className="flex items-baseline gap-2">
+          <span className="font-mono text-[10px] text-muted-foreground">{number}</span>
+          <span className="text-sm font-medium text-foreground">{title}</span>
+        </div>
+        {status === "completed" && (
+          <Check className="ml-auto h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
+        )}
+        {status === "invalidated" && (
+          <AlertCircle className="ml-auto h-3.5 w-3.5 text-[#ca8a04]" strokeWidth={1.5} />
+        )}
+      </button>
+
+      {/* Step content */}
+      <AnimatePresence>
+        {isActive && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-5 pt-1">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
