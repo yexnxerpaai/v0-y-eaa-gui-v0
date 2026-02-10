@@ -11,7 +11,7 @@ export function IdentityStrip() {
 
         {/* Identity Info */}
         <div className="flex-1">
-          <h1 className="text-lg font-semibold tracking-tight text-foreground">
+          <h1 className="text-lg font-semibold text-foreground">
             Alex Chen
           </h1>
           

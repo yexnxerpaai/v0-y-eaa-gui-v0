@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import React from "react"
+
+import { useState, useCallback, useEffect, useRef } from "react"
 import {
   Sheet,
   SheetContent,
@@ -8,83 +10,53 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import {
   Upload,
   FileText,
   Key,
-  ArrowRight,
-  CheckSquare,
-  Square,
-  Play,
-  Pause,
-  StopCircle,
-  RotateCcw,
-  Pencil,
-  ChevronDown,
-  ChevronUp,
   AlertCircle,
   Loader2,
+  Check,
+  Globe,
+  HardDrive,
+  ClipboardPaste,
+  ChevronRight,
+  CheckSquare,
+  Square,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { motion, AnimatePresence } from "framer-motion"
+
+/* ─── Types ───────────────────────────────────────────── */
+
+type StepStatus = "not-started" | "in-progress" | "completed" | "invalidated"
+
+interface StepState {
+  step1: StepStatus
+  step2: StepStatus
+  step3: StepStatus
+}
 
 interface ExtensionPopupProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-type ExtensionState =
-  | "setup"
-  | "consent"
-  | "ready"
-  | "running"
-  | "paused"
-  | "completed"
+/* ─── Status Color Map ────────────────────────────────── */
 
-export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
-  const [state, setState] = useState<ExtensionState>("setup")
+const STATUS_BAR: Record<StepStatus, string> = {
+  completed: "bg-[#16a34a]",
+  "in-progress": "bg-[#002d72]",
+  invalidated: "bg-[#ca8a04]",
+  "not-started": "bg-[#e5e5e5]",
+}
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="w-[380px] border-l border-border bg-background p-0 sm:w-[380px]"
-      >
-        {/* Extension Header */}
-        <div className="border-b border-border px-5 py-4">
-          <SheetHeader className="space-y-0">
-            <div className="flex items-baseline gap-1.5">
-              <SheetTitle className="text-sm font-semibold tracking-tight text-foreground">
-                Y.EAA Extension
-              </SheetTitle>
-              <span className="text-[10px] text-muted-foreground">MVP</span>
-            </div>
-          </SheetHeader>
-        </div>
-
-        {/* State Content */}
-        <div className="flex h-[calc(100%-57px)] flex-col">
-          {state === "setup" && <SetupState onContinue={() => setState("consent")} />}
-          {state === "consent" && (
-            <ConsentState
-              onAccept={() => setState("ready")}
-              onBack={() => setState("setup")}
-            />
-          )}
-          {state === "ready" && <ReadyState onStart={() => setState("running")} onEditSetup={() => setState("setup")} />}
-          {state === "running" && <RunningState onPause={() => setState("paused")} />}
-          {state === "paused" && (
-            <PausedState
-              onResume={() => setState("running")}
-              onStop={() => setState("completed")}
-            />
-          )}
-          {state === "completed" && <CompletedState onReset={() => setState("setup")} />}
-        </div>
-      </SheetContent>
-    </Sheet>
-  )
+const STATUS_TEXT: Record<StepStatus, string> = {
+  completed: "text-white",
+  "in-progress": "text-white",
+  invalidated: "text-white",
+  "not-started": "text-foreground",
 }
 
 /* ─── Mock: Referral Code Verification ────────────────── */
@@ -97,627 +69,654 @@ async function verifyReferralCode(
   if (validCodes.includes(code.trim().toUpperCase())) {
     return { success: true, quotaAdded: 5 }
   }
-  if (code.trim().length === 0) {
-    return { success: false, error: "Invalid referral code" }
-  }
-  return { success: false, error: "This referral code has already been used" }
+  return { success: false, error: "Invalid or already used" }
 }
 
-/* ─── STATE 0: Setup ──────────────────────────────────── */
+/* ─── Mock: Resume Analysis ───────────────────────────── */
 
-function SetupState({ onContinue }: { onContinue: () => void }) {
-  const [resumeText, setResumeText] = useState("")
+const ANALYSIS_MESSAGES = [
+  "Parsing source material\u2026",
+  "Extracting experience timeline\u2026",
+  "Mapping skills to market taxonomy\u2026",
+  "Analyzing career trajectory\u2026",
+  "Identifying target roles\u2026",
+  "Finalizing recommendations\u2026",
+]
+
+const MOCK_ROLES = [
+  { title: "Senior Software Engineer", confidence: 0.94 },
+  { title: "Staff Engineer", confidence: 0.87 },
+  { title: "Engineering Manager", confidence: 0.72 },
+]
+
+/* ─── Main Component ──────────────────────────────────── */
+
+export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
+  const [quota, setQuota] = useState(5)
+  const [quotaTrayOpen, setQuotaTrayOpen] = useState(false)
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1)
+  const [steps, setSteps] = useState<StepState>({
+    step1: "in-progress",
+    step2: "not-started",
+    step3: "not-started",
+  })
+
+  // Step 1 state
   const [apiKey, setApiKey] = useState("")
-  const [showApiKey, setShowApiKey] = useState(false)
-  const [freeQuota, setFreeQuota] = useState(5)
+  const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle")
+  const [sources, setSources] = useState<{ name: string; type: string }[]>([])
+  const [showPasteInput, setShowPasteInput] = useState(false)
+  const [pasteText, setPasteText] = useState("")
 
-  // Referral code state
+  // Step 2 state
+  const [currentMessage, setCurrentMessage] = useState("")
+  const [roles, setRoles] = useState<typeof MOCK_ROLES>([])
+  const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const [analysisComplete, setAnalysisComplete] = useState(false)
+
+  // Step 3 state
+  const [dontShowAgain, setDontShowAgain] = useState(false)
+
+  // Referral state
   const [referralCode, setReferralCode] = useState("")
   const [referralLoading, setReferralLoading] = useState(false)
-  const [referralSuccess, setReferralSuccess] = useState<string | null>(null)
   const [referralError, setReferralError] = useState<string | null>(null)
   const [appliedCodes, setAppliedCodes] = useState<string[]>([])
 
-  const hasResume = resumeText.trim().length > 0
+  const hasSources = sources.length > 0
+
+  /* ─── Step 1: API Key Validation (status-only, not blocking) */
+
+  const handleValidateKey = useCallback(async () => {
+    if (!apiKey.trim()) return
+    setKeyStatus("checking")
+    await new Promise((r) => setTimeout(r, 1500))
+    if (apiKey.startsWith("sk-") && apiKey.length > 5) {
+      setKeyStatus("valid")
+    } else {
+      setKeyStatus("invalid")
+    }
+  }, [apiKey])
+
+  /* ─── Step 1: Source interaction auto-completes step ──── */
+
+  useEffect(() => {
+    if (hasSources && steps.step1 === "in-progress") {
+      setSteps((prev) => ({ ...prev, step1: "completed", step2: "in-progress" }))
+      setActiveStep(2)
+    }
+  }, [hasSources, steps.step1])
+
+  /* ─── Step 1: Add source helpers ─────────────────────── */
+
+  const handleAddFile = useCallback(() => {
+    // Mock: simulate file picker
+    setSources((prev) => [...prev, { name: "resume_2026.pdf", type: "PDF" }])
+  }, [])
+
+  const handleAddWebsite = useCallback(() => {
+    setSources((prev) => [...prev, { name: "linkedin.com/in/profile", type: "URL" }])
+  }, [])
+
+  const handleAddDrive = useCallback(() => {
+    setSources((prev) => [...prev, { name: "Google Drive - Resume.docx", type: "Drive" }])
+  }, [])
+
+  const handleAddPaste = useCallback(() => {
+    if (pasteText.trim()) {
+      setSources((prev) => [...prev, { name: `Pasted text (${pasteText.trim().split(/\s+/).length} words)`, type: "Text" }])
+      setPasteText("")
+      setShowPasteInput(false)
+    }
+  }, [pasteText])
+
+  /* ─── Step 1 Reopen (Invalidates downstream) ─────────── */
+
+  const handleReopenStep1 = useCallback(() => {
+    setActiveStep(1)
+    setSteps({
+      step1: "in-progress",
+      step2: steps.step2 !== "not-started" ? "invalidated" : "not-started",
+      step3: steps.step3 !== "not-started" ? "invalidated" : "not-started",
+    })
+    setSources([])
+    setCurrentMessage("")
+    setRoles([])
+    setSelectedRole(null)
+    setAnalysisComplete(false)
+    analysisRef.current = false
+  }, [steps])
+
+  /* ─── Step 2 Analysis (auto-starts, single-line replace) */
+
+  const analysisRef = useRef(false)
+
+  useEffect(() => {
+    if (steps.step2 !== "in-progress" || analysisRef.current) return
+    analysisRef.current = true
+
+    let idx = 0
+    const msgInterval = setInterval(() => {
+      if (idx < ANALYSIS_MESSAGES.length) {
+        setCurrentMessage(ANALYSIS_MESSAGES[idx])
+        idx++
+      } else {
+        clearInterval(msgInterval)
+      }
+    }, 800)
+
+    // Surface roles progressively
+    const roleTimeouts = MOCK_ROLES.map((role, i) =>
+      setTimeout(() => {
+        setRoles((prev) => [...prev, role])
+        if (i === MOCK_ROLES.length - 1) {
+          setAnalysisComplete(true)
+        }
+      }, 3000 + i * 1500)
+    )
+
+    return () => {
+      clearInterval(msgInterval)
+      for (const t of roleTimeouts) clearTimeout(t)
+    }
+  }, [steps.step2])
+
+  const handleSelectRole = useCallback((title: string) => {
+    setSelectedRole(title)
+    setSteps((prev) => ({ ...prev, step2: "completed", step3: "in-progress" }))
+    setActiveStep(3)
+  }, [])
+
+  /* ─── Step 3 Go ─────────────────────────────────────── */
+
+  const handleGo = useCallback(() => {
+    setSteps((prev) => ({ ...prev, step3: "completed" }))
+  }, [])
+
+  /* ─── Referral ──────────────────────────────────────── */
 
   const handleApplyReferral = useCallback(async () => {
     const code = referralCode.trim().toUpperCase()
-    if (!code) return
-
-    if (appliedCodes.includes(code)) {
-      setReferralError("This referral code has already been used")
+    if (!code || appliedCodes.includes(code)) {
+      setReferralError("Already applied")
       setTimeout(() => setReferralError(null), 3000)
       return
     }
-
     setReferralLoading(true)
-    setReferralSuccess(null)
     setReferralError(null)
-
     const result = await verifyReferralCode(code)
-
     if (result.success && result.quotaAdded) {
-      setFreeQuota((prev) => prev + result.quotaAdded!)
+      setQuota((prev) => prev + result.quotaAdded!)
       setAppliedCodes((prev) => [...prev, code])
-      setReferralSuccess(
-        `Referral code applied. +${result.quotaAdded} applications added.`
-      )
       setReferralCode("")
     } else {
-      setReferralError(result.error || "Invalid referral code")
+      setReferralError(result.error || "Invalid")
       setTimeout(() => setReferralError(null), 3000)
     }
-
     setReferralLoading(false)
   }, [referralCode, appliedCodes])
 
   return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Resume Input */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Resume
-            </p>
-            <button
-              type="button"
-              className="flex items-center gap-1 text-[10px] text-primary hover:underline"
-            >
-              <Upload className="h-3 w-3" strokeWidth={1.5} />
-              Upload PDF
-            </button>
-          </div>
-          <Textarea
-            value={resumeText}
-            onChange={(e) => setResumeText(e.target.value)}
-            placeholder="Paste your resume as plain text, or upload a PDF above."
-            className="mt-3 min-h-[120px] resize-none border-border bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground focus:border-primary"
-          />
-          {hasResume && (
-            <div className="mt-2 flex items-center gap-1.5">
-              <FileText className="h-3 w-3 text-muted-foreground" strokeWidth={1.5} />
-              <span className="text-[10px] text-muted-foreground">
-                {resumeText.split(/\s+/).length} words loaded
-              </span>
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent
+        side="right"
+        className="flex w-[380px] flex-col border-l border-border bg-background p-0 sm:w-[380px]"
+      >
+        {/* ─── Header ─────────────────────────────────────── */}
+        <div className="shrink-0 border-b border-border px-5 py-4">
+          <SheetHeader className="space-y-0">
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-sm font-semibold text-foreground">
+                Y.EAA
+              </SheetTitle>
+              {/* Quota chip (clickable, opens tray) */}
+              <button
+                type="button"
+                className="flex items-center gap-1 border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground"
+                onClick={() => setQuotaTrayOpen(!quotaTrayOpen)}
+              >
+                <span className="text-[10px] text-muted-foreground">Quota:</span>
+                <span className="font-mono font-medium text-foreground">{quota}</span>
+              </button>
             </div>
-          )}
+          </SheetHeader>
         </div>
 
-        {/* API Key */}
-        <div className="border-b border-border px-5 py-5">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between"
-            onClick={() => setShowApiKey(!showApiKey)}
-          >
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              LLM API Key
-            </p>
-            <span className="text-xs text-muted-foreground">
-              Optional
-            </span>
-          </button>
-          {showApiKey && (
-            <div className="mt-3">
-              <div className="relative">
-                <Key className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="h-9 border-border bg-transparent pl-9 text-sm placeholder:text-muted-foreground"
-                />
+        {/* ─── Quota Tray (expanded on click) ────────────── */}
+        <AnimatePresence>
+          {quotaTrayOpen && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeInOut" }}
+              className="shrink-0 overflow-hidden border-b border-border"
+            >
+              <div className="px-5 pb-4 pt-3">
+                <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
+                  Referral code
+                </p>
+                <div className="mt-2 flex gap-2">
+                  <Input
+                    type="text"
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !referralLoading) handleApplyReferral()
+                    }}
+                    placeholder="Enter code"
+                    disabled={referralLoading}
+                    className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
+                  />
+                  <Button
+                    variant="outline"
+                    className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                    onClick={handleApplyReferral}
+                    disabled={referralLoading || referralCode.trim().length === 0}
+                  >
+                    {referralLoading ? (
+                      <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                    ) : (
+                      "Apply"
+                    )}
+                  </Button>
+                </div>
+                {referralError && (
+                  <p className="mt-1.5 text-[10px] text-destructive">{referralError}</p>
+                )}
+                <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
+                  Adds applications to your remaining quota.
+                </p>
               </div>
-              <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-                Without an API key, Y.EAA uses a free quota of {freeQuota} applications.
-              </p>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
 
-        {/* Referral Code */}
-        <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Referral Code (Internal Testing)
-          </p>
-          <div className="mt-3 flex gap-2">
-            <Input
-              type="text"
-              value={referralCode}
-              onChange={(e) => {
-                setReferralCode(e.target.value)
-                if (referralSuccess) setReferralSuccess(null)
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !referralLoading) handleApplyReferral()
-              }}
-              placeholder="Enter referral code"
-              disabled={referralLoading}
-              className="h-9 flex-1 border-border bg-transparent text-sm placeholder:text-muted-foreground"
-            />
-            <Button
-              variant="outline"
-              className="h-9 shrink-0 border-border bg-transparent px-4 text-xs font-medium text-foreground hover:bg-secondary"
-              onClick={handleApplyReferral}
-              disabled={referralLoading || referralCode.trim().length === 0}
-            >
-              {referralLoading ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-              ) : (
-                "Apply"
+        {/* ─── Accordion Steps ───────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
+
+          {/* ─── Step 1: PREPARE ─────────────────────────── */}
+          <AccordionStep
+            number={1}
+            title="Prepare"
+            status={steps.step1}
+            isActive={activeStep === 1}
+            onToggle={() => {
+              if (activeStep === 1) return
+              if (steps.step1 === "completed") handleReopenStep1()
+            }}
+            canToggle={steps.step1 === "completed" || steps.step1 === "in-progress"}
+          >
+            {/* LLM API Key (status-only, never blocks progression) */}
+            <div className="space-y-2">
+              <p className="text-[11px] text-muted-foreground">LLM API Key</p>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
+                  <Input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => {
+                      setApiKey(e.target.value)
+                      if (keyStatus !== "idle") setKeyStatus("idle")
+                    }}
+                    placeholder="sk-..."
+                    className="h-8 border-border bg-transparent pl-8 text-sm placeholder:text-muted-foreground"
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                  onClick={handleValidateKey}
+                  disabled={!apiKey.trim() || keyStatus === "checking"}
+                >
+                  {keyStatus === "checking" ? (
+                    <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                  ) : (
+                    "Validate"
+                  )}
+                </Button>
+              </div>
+              {keyStatus === "checking" && (
+                <p className="text-[10px] text-muted-foreground">{"Validating connection\u2026"}</p>
               )}
-            </Button>
-          </div>
-
-          {/* Success feedback */}
-          {referralSuccess && (
-            <p className="mt-2 text-[10px] leading-relaxed text-[#16a34a]">
-              {referralSuccess}
-            </p>
-          )}
-
-          {/* Error toast (inline) */}
-          {referralError && (
-            <div className="mt-2 flex items-center gap-1.5 border border-destructive/20 bg-destructive/5 px-2.5 py-1.5">
-              <AlertCircle className="h-3 w-3 shrink-0 text-destructive" strokeWidth={1.5} />
-              <p className="text-[10px] text-destructive">{referralError}</p>
+              {keyStatus === "valid" && (
+                <div className="flex items-center gap-1.5">
+                  <Check className="h-3 w-3 text-[#16a34a]" strokeWidth={2} />
+                  <p className="text-[10px] text-[#16a34a]">Key verified</p>
+                </div>
+              )}
+              {keyStatus === "invalid" && (
+                <div className="flex items-center gap-1.5">
+                  <AlertCircle className="h-3 w-3 text-destructive" strokeWidth={1.5} />
+                  <p className="text-[10px] text-destructive">Invalid key. Please check and try again.</p>
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* Quota Display */}
-        <div className="px-5 py-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Quota
-            </p>
-            {apiKey ? (
-              <span className="text-xs text-foreground">Using your API key</span>
-            ) : (
-              <span className="font-mono text-xs text-foreground">{freeQuota} remaining</span>
-            )}
-          </div>
-          {!apiKey && (
-            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
-              Free applications remaining. Total, not per day.
-            </p>
-          )}
-        </div>
-      </div>
+            {/* Source material (NotebookLM-style container) */}
+            <div className="mt-5 space-y-3">
+              <p className="text-[11px] text-muted-foreground">Source material</p>
 
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <p className="mb-3 text-[10px] leading-relaxed text-muted-foreground">
-          Y.EAA only works on LinkedIn job pages. Setup does not start any application.
-        </p>
-        <Button
-          className="h-9 w-full gap-2 bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
-          onClick={onContinue}
-          disabled={!hasResume}
-        >
-          Continue to LinkedIn Jobs
-          <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
-        </Button>
-      </div>
-    </>
-  )
-}
+              {/* Added sources list */}
+              {sources.length > 0 && (
+                <div className="space-y-1.5">
+                  {sources.map((src, i) => (
+                    <div
+                      key={`src-${i}`}
+                      className="flex items-center gap-2 border border-border px-3 py-2"
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+                      <span className="flex-1 truncate text-[11px] text-foreground">{src.name}</span>
+                      <span className="shrink-0 text-[9px] uppercase text-muted-foreground">{src.type}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
-/* ─── STATE 1: Pre-LinkedIn Consent ────────────────────── */
-
-function ConsentState({
-  onAccept,
-  onBack,
-}: {
-  onAccept: () => void
-  onBack: () => void
-}) {
-  const [consented, setConsented] = useState(false)
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto px-5 py-6">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Before you continue
-        </h2>
-
-        <div className="mt-5 space-y-4">
-          {[
-            "Y.EAA operates only on LinkedIn pages you open.",
-            "It works only while you are logged into LinkedIn in this browser.",
-            "No passwords are stored.",
-            "No cookies are saved.",
-            "No actions happen outside this session.",
-          ].map((line) => (
-            <div key={line} className="flex items-start gap-3">
-              <span className="mt-0.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground" />
-              <p className="text-sm leading-relaxed text-foreground">{line}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="mt-8 border-t border-border pt-5">
-          <p className="text-sm leading-relaxed text-muted-foreground">
-            Y.EAA assists you only while you are logged into LinkedIn in this
-            browser tab. We do not store credentials, cookies, or login sessions.
-            All actions happen visibly during this session.
-          </p>
-        </div>
-
-        {/* Consent Checkbox */}
-        <button
-          type="button"
-          className="mt-6 flex items-start gap-3"
-          onClick={() => setConsented(!consented)}
-        >
-          {consented ? (
-            <CheckSquare className="mt-0.5 h-4 w-4 shrink-0 text-primary" strokeWidth={1.5} />
-          ) : (
-            <Square className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-          )}
-          <span className="text-left text-sm leading-relaxed text-foreground">
-            I understand and want to continue
-          </span>
-        </button>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="h-9 flex-1 border-border bg-transparent text-xs font-medium text-foreground"
-            onClick={onBack}
-          >
-            Back
-          </Button>
-          <Button
-            className="h-9 flex-1 gap-2 bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
-            onClick={onAccept}
-            disabled={!consented}
-          >
-            Go to LinkedIn Jobs
-            <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.5} />
-          </Button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 2: Ready (On LinkedIn, Idle) ────────────────── */
-
-function ReadyState({
-  onStart,
-  onEditSetup,
-}: {
-  onStart: () => void
-  onEditSetup: () => void
-}) {
-  const [resumeExpanded, setResumeExpanded] = useState(false)
-  const freeQuota = 5
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-success" />
-            <span className="text-sm font-medium text-foreground">Ready</span>
-          </div>
-          <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-            Open a job with Easy Apply to begin.
-          </p>
-        </div>
-
-        {/* Quota */}
-        <div className="border-b border-border px-5 py-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Quota
-            </span>
-            <span className="font-mono text-xs text-foreground">{freeQuota} remaining</span>
-          </div>
-        </div>
-
-        {/* Resume Summary */}
-        <div className="border-b border-border px-5 py-4">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between"
-            onClick={() => setResumeExpanded(!resumeExpanded)}
-          >
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-              Resume
-            </span>
-            {resumeExpanded ? (
-              <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-            )}
-          </button>
-          {resumeExpanded && (
-            <div className="mt-3 border border-border p-3">
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Alex Chen - Senior Software Engineer with 8+ years experience...
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <Button
-          className="h-10 w-full gap-2 bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
-          onClick={onStart}
-        >
-          <Play className="h-3.5 w-3.5" strokeWidth={2} />
-          Start Easy Apply
-        </Button>
-        <div className="mt-3 flex justify-center gap-4">
-          <button
-            type="button"
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-            onClick={onEditSetup}
-          >
-            <Pencil className="h-3 w-3" strokeWidth={1.5} />
-            Edit Resume
-          </button>
-          <button
-            type="button"
-            className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground"
-            onClick={onEditSetup}
-          >
-            <Key className="h-3 w-3" strokeWidth={1.5} />
-            Edit Settings
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 3: Running ─────────────────────────────────── */
-
-function RunningState({ onPause }: { onPause: () => void }) {
-  const [current] = useState(2)
-  const total = 5
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
-            <span className="text-sm font-medium text-foreground">Running</span>
-          </div>
-        </div>
-
-        {/* Progress */}
-        <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Progress
-          </p>
-          <div className="mt-3 flex items-baseline gap-1.5">
-            <span className="font-mono text-2xl font-semibold text-foreground">{current}</span>
-            <span className="text-sm text-muted-foreground">of {total}</span>
-          </div>
-
-          {/* Progress bar */}
-          <div className="mt-3 h-1 w-full bg-border">
-            <div
-              className="h-full bg-primary transition-all duration-500"
-              style={{ width: `${(current / total) * 100}%` }}
-            />
-          </div>
-
-          <p className="mt-3 text-sm text-muted-foreground">
-            Applying to Senior Software Engineer at Stripe...
-          </p>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Activity
-          </p>
-          <div className="mt-3 space-y-2">
-            <div className="flex items-start gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-success" />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Staff Engineer at Figma - submitted
-              </p>
-            </div>
-            <div className="flex items-start gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-primary" />
-              <p className="text-xs leading-relaxed text-muted-foreground">
-                Senior Software Engineer at Stripe - in progress
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <Button
-          variant="outline"
-          className="h-10 w-full gap-2 border-border bg-transparent text-sm font-medium text-foreground"
-          onClick={onPause}
-        >
-          <Pause className="h-3.5 w-3.5" strokeWidth={2} />
-          Pause
-        </Button>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 4: Paused ──────────────────────────────────── */
-
-function PausedState({
-  onResume,
-  onStop,
-}: {
-  onResume: () => void
-  onStop: () => void
-}) {
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-warning" />
-            <span className="text-sm font-medium text-foreground">Paused</span>
-          </div>
-        </div>
-
-        {/* Confirmation */}
-        <div className="px-5 py-6">
-          <p className="text-sm leading-relaxed text-foreground">
-            Application paused. You can resume or stop the session.
-          </p>
-
-          <div className="mt-6 space-y-3 border-t border-border pt-5">
-            <div className="flex items-start gap-3">
-              <Play className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-              <div>
-                <p className="text-sm font-medium text-foreground">Resume</p>
-                <p className="text-xs text-muted-foreground">
-                  Restart from the current job.
-                </p>
+              {/* Source action buttons (NotebookLM-style) */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={handleAddFile}
+                >
+                  <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Upload files
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={handleAddWebsite}
+                >
+                  <Globe className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Website
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={handleAddDrive}
+                >
+                  <HardDrive className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Drive
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={() => setShowPasteInput(!showPasteInput)}
+                >
+                  <ClipboardPaste className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Copied text
+                </button>
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <StopCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-              <div>
-                <p className="text-sm font-medium text-foreground">Stop</p>
-                <p className="text-xs text-muted-foreground">
-                  End this session. Shows summary.
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <div className="flex gap-3">
-          <Button
-            variant="outline"
-            className="h-9 flex-1 gap-1.5 border-border bg-transparent text-xs font-medium text-foreground"
-            onClick={onStop}
+              {/* Inline paste input (only shown on click) */}
+              <AnimatePresence>
+                {showPasteInput && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddPaste()
+                        }}
+                        placeholder="Paste text content"
+                        className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
+                        autoFocus
+                      />
+                      <Button
+                        variant="outline"
+                        className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                        onClick={handleAddPaste}
+                        disabled={!pasteText.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </AccordionStep>
+
+          {/* ─── Step 2: SELECT ──────────────────────────── */}
+          <AccordionStep
+            number={2}
+            title="Select"
+            status={steps.step2}
+            isActive={activeStep === 2}
+            onToggle={() => {
+              if (steps.step2 === "completed" || steps.step2 === "in-progress") {
+                setActiveStep(2)
+              }
+            }}
+            canToggle={steps.step2 === "completed" || steps.step2 === "in-progress"}
           >
-            <StopCircle className="h-3.5 w-3.5" strokeWidth={1.5} />
-            Stop
-          </Button>
-          <Button
-            className="h-9 flex-1 gap-1.5 bg-primary text-xs font-medium text-primary-foreground hover:bg-primary/90"
-            onClick={onResume}
-          >
-            <Play className="h-3.5 w-3.5" strokeWidth={2} />
-            Resume
-          </Button>
-        </div>
-      </div>
-    </>
-  )
-}
-
-/* ─── STATE 5: Completed / Stopped ─────────────────────── */
-
-function CompletedState({ onReset }: { onReset: () => void }) {
-  const attempted = 5
-  const submitted = 3
-  const skipped = 2
-  const quotaRemaining = 0
-
-  const skippedFields = [
-    "Cover letter field at Notion was unclear.",
-    "Salary expectation at Linear had unexpected format.",
-  ]
-
-  return (
-    <>
-      <div className="flex-1 overflow-y-auto">
-        {/* Status */}
-        <div className="border-b border-border px-5 py-5">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-muted-foreground" />
-            <span className="text-sm font-medium text-foreground">Session Complete</span>
-          </div>
-        </div>
-
-        {/* Summary */}
-        <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-            Summary
-          </p>
-          <div className="mt-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Attempted</span>
-              <span className="font-mono text-sm text-foreground">{attempted}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Submitted</span>
-              <span className="font-mono text-sm text-foreground">{submitted}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Skipped</span>
-              <span className="font-mono text-sm text-foreground">{skipped}</span>
-            </div>
-            <div className="h-px bg-border" />
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Quota remaining</span>
-              <span className="font-mono text-sm text-foreground">{quotaRemaining}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Skipped Details */}
-        {skippedFields.length > 0 && (
-          <div className="px-5 py-5">
-            <div className="flex items-center gap-2">
-              <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Skipped Fields
-              </p>
-            </div>
-            <div className="mt-3 space-y-2">
-              {skippedFields.map((field) => (
-                <p key={field} className="text-xs leading-relaxed text-muted-foreground">
-                  {field}
-                </p>
+            {/* Operating conditions (above roles, always visible) */}
+            <div className="mb-4 space-y-1">
+              {[
+                "Works only inside your active LinkedIn tab",
+                "Does not auto-submit applications",
+                "No actions outside the current browser tab",
+              ].map((line) => (
+                <div key={line} className="flex items-start gap-2">
+                  <span className="mt-1.5 h-0.5 w-0.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                  <p className="text-[10px] leading-relaxed text-muted-foreground/70">{line}</p>
+                </div>
               ))}
             </div>
-            <p className="mt-4 text-[10px] leading-relaxed text-muted-foreground">
-              Some fields were skipped due to unclear format. You may update your resume or answers and try again.
-            </p>
-          </div>
-        )}
-      </div>
 
-      {/* Footer */}
-      <div className="shrink-0 border-t border-border px-5 py-4">
-        <Button
-          variant="outline"
-          className="h-9 w-full gap-2 border-border bg-transparent text-xs font-medium text-foreground"
-          onClick={onReset}
-        >
-          <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} />
-          New Session
-        </Button>
-        <p className="mt-3 text-center text-[10px] text-muted-foreground">
-          This UI is generated as a working draft. Final behavior will be reviewed and refined.
-        </p>
-      </div>
-    </>
+            {/* Single-line system message (replace on update, no heading) */}
+            {currentMessage && (
+              <div className="mb-4 rounded-sm bg-[#fafafa] px-3 py-2">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={currentMessage}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="font-mono text-[10px] text-muted-foreground/60"
+                  >
+                    {currentMessage}
+                    {!analysisComplete && (
+                      <span className="ml-1.5 inline-block h-1 w-1 animate-pulse rounded-full bg-[#002d72]" />
+                    )}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Recommended roles (full-width buttons, no radio circles) */}
+            {roles.length > 0 && (
+              <div className="space-y-2">
+                {roles.map((role) => (
+                  <motion.button
+                    key={role.title}
+                    type="button"
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className={cn(
+                      "flex w-full items-center justify-between border px-4 py-3.5 text-left transition-all",
+                      selectedRole === role.title
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-foreground/20 hover:bg-secondary/30"
+                    )}
+                    onClick={() => handleSelectRole(role.title)}
+                  >
+                    <span className="text-sm font-medium text-foreground">{role.title}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/50">
+                      {Math.round(role.confidence * 100)}%
+                    </span>
+                  </motion.button>
+                ))}
+              </div>
+            )}
+
+            {/* Invalidated notice */}
+            {steps.step2 === "invalidated" && (
+              <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
+                <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
+                <p className="text-[10px] text-[#ca8a04]">
+                  Prepare was modified. Re-add sources to continue.
+                </p>
+              </div>
+            )}
+          </AccordionStep>
+
+          {/* ─── Step 3: GO APPLY ────────────────────────── */}
+          <AccordionStep
+            number={3}
+            title="Go Apply"
+            status={steps.step3}
+            isActive={activeStep === 3}
+            onToggle={() => {
+              if (steps.step3 === "in-progress" || steps.step3 === "completed") {
+                setActiveStep(3)
+              }
+            }}
+            canToggle={steps.step3 === "in-progress" || steps.step3 === "completed"}
+          >
+            {/* Ready state summary */}
+            {selectedRole && (
+              <div className="mb-4 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Target role:</span>
+                  <span className="text-[11px] font-medium text-foreground">{selectedRole}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-muted-foreground">Platform:</span>
+                  <span className="text-[11px] font-medium text-foreground">LinkedIn Easy Apply</span>
+                </div>
+              </div>
+            )}
+
+            {/* Confirmation checkbox */}
+            <button
+              type="button"
+              className="flex items-center gap-2"
+              onClick={() => setDontShowAgain(!dontShowAgain)}
+            >
+              {dontShowAgain ? (
+                <CheckSquare className="h-3.5 w-3.5 text-primary" strokeWidth={1.5} />
+              ) : (
+                <Square className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
+              )}
+              <span className="text-xs text-muted-foreground">
+                {"Don't show this again"}
+              </span>
+            </button>
+
+            {/* Primary action */}
+            <div className="mt-5">
+              {steps.step3 === "completed" ? (
+                <div className="flex items-center gap-2 py-2">
+                  <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
+                  <span className="text-xs text-[#16a34a]">Tab group opened</span>
+                </div>
+              ) : (
+                <Button
+                  className="h-10 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
+                  onClick={handleGo}
+                >
+                  System ready. Proceed.
+                </Button>
+              )}
+            </div>
+
+            {/* Invalidated notice */}
+            {steps.step3 === "invalidated" && (
+              <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
+                <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
+                <p className="text-[10px] text-[#ca8a04]">
+                  Previous steps were modified. Complete them to proceed.
+                </p>
+              </div>
+            )}
+          </AccordionStep>
+        </div>
+
+        {/* ─── Footer (background noise) ─────────────────── */}
+        <div className="shrink-0 border-t border-border px-5 py-3">
+          <p className="text-center text-[9px] text-muted-foreground/50">
+            Y.EAA does not store credentials, cookies, or login sessions.
+          </p>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
+/* ─── Accordion Step Component ────────────────────────── */
+
+function AccordionStep({
+  number,
+  title,
+  status,
+  isActive,
+  onToggle,
+  canToggle,
+  children,
+}: {
+  number: number
+  title: string
+  status: StepStatus
+  isActive: boolean
+  onToggle: () => void
+  canToggle: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="border-b border-border">
+      {/* Step header (full-bar color) */}
+      <button
+        type="button"
+        className={cn(
+          "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors",
+          STATUS_BAR[status],
+          canToggle ? "hover:opacity-90" : "cursor-default"
+        )}
+        onClick={onToggle}
+        disabled={!canToggle}
+      >
+        <span className={cn("font-mono text-[10px]", STATUS_TEXT[status])}>{number}</span>
+        <span className={cn("text-sm font-medium", STATUS_TEXT[status])}>{title}</span>
+        {status === "completed" && (
+          <Check className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={2} />
+        )}
+        {status === "invalidated" && (
+          <AlertCircle className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={1.5} />
+        )}
+        {status === "in-progress" && (
+          <ChevronRight className={cn("ml-auto h-3.5 w-3.5 transition-transform", isActive && "rotate-90", STATUS_TEXT[status])} strokeWidth={1.5} />
+        )}
+      </button>
+
+      {/* Step content */}
+      <AnimatePresence>
+        {isActive && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 pb-5 pt-3">
+              {children}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
