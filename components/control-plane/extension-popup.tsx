@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Upload,
   FileText,
@@ -18,8 +19,8 @@ import {
   AlertCircle,
   Loader2,
   Check,
-  Globe,
-  HardDrive,
+  Plus,
+  X,
   ClipboardPaste,
   ChevronRight,
   CheckSquare,
@@ -43,20 +44,20 @@ interface ExtensionPopupProps {
   onOpenChange: (open: boolean) => void
 }
 
-/* ─── Status Color Map ────────────────────────────────── */
+/* ─── Status Color Map (Industrial Silence) ──────────── */
 
 const STATUS_BAR: Record<StepStatus, string> = {
   completed: "bg-[#16a34a]",
-  "in-progress": "bg-[#002d72]",
+  "in-progress": "bg-[#002366]",
   invalidated: "bg-[#ca8a04]",
-  "not-started": "bg-[#e5e5e5]",
+  "not-started": "bg-[#e2e8f0]",
 }
 
 const STATUS_TEXT: Record<StepStatus, string> = {
   completed: "text-white",
   "in-progress": "text-white",
   invalidated: "text-white",
-  "not-started": "text-foreground",
+  "not-started": "text-[#64748b]",
 }
 
 /* ─── Mock: Referral Code Verification ────────────────── */
@@ -75,10 +76,10 @@ async function verifyReferralCode(
 /* ─── Mock: Resume Analysis ───────────────────────────── */
 
 const ANALYSIS_MESSAGES = [
-  "Parsing source material\u2026",
+  "Analyzing resume structure\u2026",
+  "Mapping career trajectory\u2026",
   "Extracting experience timeline\u2026",
   "Mapping skills to market taxonomy\u2026",
-  "Analyzing career trajectory\u2026",
   "Identifying target roles\u2026",
   "Finalizing recommendations\u2026",
 ]
@@ -86,14 +87,13 @@ const ANALYSIS_MESSAGES = [
 const MOCK_ROLES = [
   { title: "Senior Software Engineer", confidence: 0.94 },
   { title: "Staff Engineer", confidence: 0.87 },
-  { title: "Engineering Manager", confidence: 0.72 },
 ]
 
 /* ─── Main Component ──────────────────────────────────── */
 
 export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [quota, setQuota] = useState(5)
-  const [quotaTrayOpen, setQuotaTrayOpen] = useState(false)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1)
   const [steps, setSteps] = useState<StepState>({
     step1: "in-progress",
@@ -104,18 +104,20 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   // Step 1 state
   const [apiKey, setApiKey] = useState("")
   const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle")
-  const [sources, setSources] = useState<{ name: string; type: string }[]>([])
-  const [showPasteInput, setShowPasteInput] = useState(false)
+  const [resumeModalOpen, setResumeModalOpen] = useState(false)
+  const [resumeModalMode, setResumeModalMode] = useState<"choose" | "paste" | null>(null)
   const [pasteText, setPasteText] = useState("")
+  const [sources, setSources] = useState<{ name: string; type: string }[]>([])
 
   // Step 2 state
   const [currentMessage, setCurrentMessage] = useState("")
   const [roles, setRoles] = useState<typeof MOCK_ROLES>([])
-  const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [analysisComplete, setAnalysisComplete] = useState(false)
 
-  // Step 3 state
-  const [dontShowAgain, setDontShowAgain] = useState(false)
+  // Step 3 state (authorization overlay)
+  const [showAuthOverlay, setShowAuthOverlay] = useState(false)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [pendingRole, setPendingRole] = useState<string | null>(null)
 
   // Referral state
   const [referralCode, setReferralCode] = useState("")
@@ -124,6 +126,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [appliedCodes, setAppliedCodes] = useState<string[]>([])
 
   const hasSources = sources.length > 0
+  const quotaIsZero = quota === 0
 
   /* ─── Step 1: API Key Validation (status-only, not blocking) */
 
@@ -138,7 +141,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     }
   }, [apiKey])
 
-  /* ─── Step 1: Source interaction auto-completes step ──── */
+  /* ─── Step 1: Source auto-completes step ────────────── */
 
   useEffect(() => {
     if (hasSources && steps.step1 === "in-progress") {
@@ -147,30 +150,27 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     }
   }, [hasSources, steps.step1])
 
-  /* ─── Step 1: Add source helpers ─────────────────────── */
+  /* ─── Step 1: Resume modal helpers ─────────────────── */
 
-  const handleAddFile = useCallback(() => {
-    // Mock: simulate file picker
+  const handleUploadPDF = useCallback(() => {
     setSources((prev) => [...prev, { name: "resume_2026.pdf", type: "PDF" }])
+    setResumeModalOpen(false)
+    setResumeModalMode(null)
   }, [])
 
-  const handleAddWebsite = useCallback(() => {
-    setSources((prev) => [...prev, { name: "linkedin.com/in/profile", type: "URL" }])
-  }, [])
-
-  const handleAddDrive = useCallback(() => {
-    setSources((prev) => [...prev, { name: "Google Drive - Resume.docx", type: "Drive" }])
-  }, [])
-
-  const handleAddPaste = useCallback(() => {
+  const handlePasteSubmit = useCallback(() => {
     if (pasteText.trim()) {
-      setSources((prev) => [...prev, { name: `Pasted text (${pasteText.trim().split(/\s+/).length} words)`, type: "Text" }])
+      setSources((prev) => [
+        ...prev,
+        { name: `Pasted (${pasteText.trim().split(/\s+/).length} words)`, type: "Text" },
+      ])
       setPasteText("")
-      setShowPasteInput(false)
+      setResumeModalOpen(false)
+      setResumeModalMode(null)
     }
   }, [pasteText])
 
-  /* ─── Step 1 Reopen (Invalidates downstream) ─────────── */
+  /* ─── Step 1 Reopen (Invalidates downstream) ────────── */
 
   const handleReopenStep1 = useCallback(() => {
     setActiveStep(1)
@@ -182,12 +182,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setSources([])
     setCurrentMessage("")
     setRoles([])
-    setSelectedRole(null)
     setAnalysisComplete(false)
+    setPendingRole(null)
     analysisRef.current = false
   }, [steps])
 
-  /* ─── Step 2 Analysis (auto-starts, single-line replace) */
+  /* ─── Step 2 Analysis (auto-starts) ────────────────── */
 
   const analysisRef = useRef(false)
 
@@ -205,13 +205,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
       }
     }, 800)
 
-    // Surface roles progressively
     const roleTimeouts = MOCK_ROLES.map((role, i) =>
       setTimeout(() => {
         setRoles((prev) => [...prev, role])
-        if (i === MOCK_ROLES.length - 1) {
-          setAnalysisComplete(true)
-        }
+        if (i === MOCK_ROLES.length - 1) setAnalysisComplete(true)
       }, 3000 + i * 1500)
     )
 
@@ -221,16 +218,19 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     }
   }, [steps.step2])
 
-  const handleSelectRole = useCallback((title: string) => {
-    setSelectedRole(title)
-    setSteps((prev) => ({ ...prev, step2: "completed", step3: "in-progress" }))
-    setActiveStep(3)
+  /* ─── Step 2: Direct action (click role = trigger auth overlay) */
+
+  const handleRoleClick = useCallback((title: string) => {
+    setPendingRole(title)
+    setShowAuthOverlay(true)
   }, [])
 
-  /* ─── Step 3 Go ─────────────────────────────────────── */
+  /* ─── Step 3: Authorization confirmed ──────────────── */
 
-  const handleGo = useCallback(() => {
-    setSteps((prev) => ({ ...prev, step3: "completed" }))
+  const handleAuthorize = useCallback(() => {
+    setShowAuthOverlay(false)
+    setSteps((prev) => ({ ...prev, step2: "completed", step3: "completed" }))
+    // Mock: in production this would trigger LinkedIn redirect
   }, [])
 
   /* ─── Referral ──────────────────────────────────────── */
@@ -260,86 +260,57 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-[380px] flex-col border-l border-border bg-background p-0 sm:w-[380px]"
+        className="flex w-[380px] flex-col border-l border-[#e2e8f0] bg-white p-0 sm:w-[380px]"
       >
         {/* ─── Header ─────────────────────────────────────── */}
-        <div className="shrink-0 border-b border-border px-5 py-4">
+        <div className="shrink-0 px-5 pb-0 pt-5">
           <SheetHeader className="space-y-0">
             <div className="flex items-center justify-between">
-              <SheetTitle className="text-sm font-semibold text-foreground">
+              <SheetTitle className="font-sans text-2xl font-bold text-[#002366]">
                 Y.EAA
               </SheetTitle>
-              {/* Quota chip (clickable, opens tray) */}
+              {/* Balance pill */}
               <button
                 type="button"
-                className="flex items-center gap-1 border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground"
-                onClick={() => setQuotaTrayOpen(!quotaTrayOpen)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-all",
+                  quotaIsZero
+                    ? "border-red-300 bg-red-50 text-red-600"
+                    : "border-[#e2e8f0] bg-[#f8fafc] text-[#334155] hover:border-[#cbd5e1]"
+                )}
+                onClick={() => setDrawerOpen(!drawerOpen)}
               >
-                <span className="text-[10px] text-muted-foreground">Quota:</span>
-                <span className="font-mono font-medium text-foreground">{quota}</span>
+                <span>Balance:</span>
+                <span className="font-mono font-semibold">{quota}</span>
+                <span>Applications</span>
+                <Plus className="ml-0.5 h-3 w-3" strokeWidth={2} />
               </button>
             </div>
           </SheetHeader>
         </div>
 
-        {/* ─── Quota Tray (expanded on click) ────────────── */}
-        <AnimatePresence>
-          {quotaTrayOpen && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2, ease: "easeInOut" }}
-              className="shrink-0 overflow-hidden border-b border-border"
-            >
-              <div className="px-5 pb-4 pt-3">
-                <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
-                  Referral code
-                </p>
-                <div className="mt-2 flex gap-2">
-                  <Input
-                    type="text"
-                    value={referralCode}
-                    onChange={(e) => setReferralCode(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !referralLoading) handleApplyReferral()
-                    }}
-                    placeholder="Enter code"
-                    disabled={referralLoading}
-                    className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
-                  />
-                  <Button
-                    variant="outline"
-                    className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
-                    onClick={handleApplyReferral}
-                    disabled={referralLoading || referralCode.trim().length === 0}
-                  >
-                    {referralLoading ? (
-                      <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
-                    ) : (
-                      "Apply"
-                    )}
-                  </Button>
-                </div>
-                {referralError && (
-                  <p className="mt-1.5 text-[10px] text-destructive">{referralError}</p>
-                )}
-                <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">
-                  Adds applications to your remaining quota.
-                </p>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* ─── Quota Progress Bar (2px) ──────────────────── */}
+        <div className="mt-3 h-[2px] w-full bg-[#e2e8f0]">
+          <motion.div
+            className={cn(
+              "h-full",
+              quotaIsZero ? "bg-red-500" : "bg-[#002366]"
+            )}
+            initial={false}
+            animate={{ width: `${Math.min((quota / 10) * 100, 100)}%` }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          />
+        </div>
 
         {/* ─── Accordion Steps ───────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ─── Step 1: PREPARE ─────────────────────────── */}
+          {/* ─── Step 1: SETUP & IDENTITY ───────────────── */}
           <AccordionStep
             number={1}
-            title="Prepare"
+            title="Setup & Identity"
             status={steps.step1}
+            statusLabel={steps.step1 === "completed" ? "Complete" : steps.step1 === "in-progress" ? "Incomplete" : ""}
             isActive={activeStep === 1}
             onToggle={() => {
               if (activeStep === 1) return
@@ -347,12 +318,42 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             }}
             canToggle={steps.step1 === "completed" || steps.step1 === "in-progress"}
           >
-            {/* LLM API Key (status-only, never blocks progression) */}
-            <div className="space-y-2">
-              <p className="text-[11px] text-muted-foreground">LLM API Key</p>
+            {/* Upload your resume (opens modal) */}
+            <div className="space-y-3">
+              <p className="text-[11px] font-medium text-[#64748b]">Upload your resume</p>
+              {sources.length > 0 && (
+                <div className="space-y-1.5">
+                  {sources.map((src, i) => (
+                    <div
+                      key={`src-${i}`}
+                      className="flex items-center gap-2 rounded border border-[#16a34a]/30 bg-[#16a34a]/5 px-3 py-2"
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-[#16a34a]" strokeWidth={1.5} />
+                      <span className="flex-1 truncate text-[11px] text-[#0a0a0a]">{src.name}</span>
+                      <span className="shrink-0 text-[9px] uppercase text-[#64748b]">{src.type}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-2 rounded border border-dashed border-[#cbd5e1] px-3 py-4 text-[12px] font-medium text-[#64748b] transition-all hover:border-[#002366]/40 hover:bg-[#002366]/[0.02] hover:text-[#002366]"
+                onClick={() => {
+                  setResumeModalOpen(true)
+                  setResumeModalMode("choose")
+                }}
+              >
+                <Upload className="h-4 w-4" strokeWidth={1.5} />
+                {sources.length > 0 ? "Add more" : "Click to upload"}
+              </button>
+            </div>
+
+            {/* Gemini API Key */}
+            <div className="mt-5 space-y-2">
+              <p className="text-[11px] font-medium text-[#64748b]">Gemini API Key</p>
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
+                  <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-[#94a3b8]" strokeWidth={1.5} />
                   <Input
                     type="password"
                     value={apiKey}
@@ -361,137 +362,55 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       if (keyStatus !== "idle") setKeyStatus("idle")
                     }}
                     placeholder="sk-..."
-                    className="h-8 border-border bg-transparent pl-8 text-sm placeholder:text-muted-foreground"
+                    className={cn(
+                      "h-9 rounded border bg-transparent pl-9 text-sm placeholder:text-[#94a3b8]",
+                      keyStatus === "valid"
+                        ? "border-[#16a34a] focus:border-[#16a34a]"
+                        : keyStatus === "invalid"
+                        ? "border-red-400 focus:border-red-400"
+                        : "border-[#e2e8f0]"
+                    )}
                   />
                 </div>
-                <Button
-                  variant="outline"
-                  className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                {/* Ghost button for validate */}
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-9 shrink-0 items-center justify-center rounded border px-4 text-[11px] font-medium transition-all",
+                    keyStatus === "valid"
+                      ? "border-[#16a34a] text-[#16a34a]"
+                      : "border-[#e2e8f0] text-[#64748b] hover:border-[#002366]/40 hover:text-[#002366] hover:shadow-[0_0_0_1px_rgba(0,35,102,0.08)]"
+                  )}
                   onClick={handleValidateKey}
                   disabled={!apiKey.trim() || keyStatus === "checking"}
                 >
                   {keyStatus === "checking" ? (
                     <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                  ) : keyStatus === "valid" ? (
+                    <Check className="h-3.5 w-3.5" strokeWidth={2} />
                   ) : (
                     "Validate"
                   )}
-                </Button>
+                </button>
               </div>
               {keyStatus === "checking" && (
-                <p className="text-[10px] text-muted-foreground">{"Validating connection\u2026"}</p>
+                <p className="text-[10px] text-[#94a3b8]">{"Validating connection\u2026"}</p>
               )}
               {keyStatus === "valid" && (
-                <div className="flex items-center gap-1.5">
-                  <Check className="h-3 w-3 text-[#16a34a]" strokeWidth={2} />
-                  <p className="text-[10px] text-[#16a34a]">Key verified</p>
-                </div>
+                <p className="text-[10px] text-[#16a34a]">Key verified</p>
               )}
               {keyStatus === "invalid" && (
-                <div className="flex items-center gap-1.5">
-                  <AlertCircle className="h-3 w-3 text-destructive" strokeWidth={1.5} />
-                  <p className="text-[10px] text-destructive">Invalid key. Please check and try again.</p>
-                </div>
+                <p className="text-[10px] text-red-500">Invalid key. Please check and try again.</p>
               )}
-            </div>
-
-            {/* Source material (NotebookLM-style container) */}
-            <div className="mt-5 space-y-3">
-              <p className="text-[11px] text-muted-foreground">Source material</p>
-
-              {/* Added sources list */}
-              {sources.length > 0 && (
-                <div className="space-y-1.5">
-                  {sources.map((src, i) => (
-                    <div
-                      key={`src-${i}`}
-                      className="flex items-center gap-2 border border-border px-3 py-2"
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
-                      <span className="flex-1 truncate text-[11px] text-foreground">{src.name}</span>
-                      <span className="shrink-0 text-[9px] uppercase text-muted-foreground">{src.type}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Source action buttons (NotebookLM-style) */}
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-                  onClick={handleAddFile}
-                >
-                  <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  Upload files
-                </button>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-                  onClick={handleAddWebsite}
-                >
-                  <Globe className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  Website
-                </button>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-                  onClick={handleAddDrive}
-                >
-                  <HardDrive className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  Drive
-                </button>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-                  onClick={() => setShowPasteInput(!showPasteInput)}
-                >
-                  <ClipboardPaste className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  Copied text
-                </button>
-              </div>
-
-              {/* Inline paste input (only shown on click) */}
-              <AnimatePresence>
-                {showPasteInput && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="flex gap-2">
-                      <Input
-                        type="text"
-                        value={pasteText}
-                        onChange={(e) => setPasteText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") handleAddPaste()
-                        }}
-                        placeholder="Paste text content"
-                        className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
-                        autoFocus
-                      />
-                      <Button
-                        variant="outline"
-                        className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
-                        onClick={handleAddPaste}
-                        disabled={!pasteText.trim()}
-                      >
-                        Add
-                      </Button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           </AccordionStep>
 
-          {/* ─── Step 2: SELECT ──────────────────────────── */}
+          {/* ─── Step 2: INTENT & ANALYSIS ──────────────── */}
           <AccordionStep
             number={2}
-            title="Select"
+            title="Intent & Analysis"
             status={steps.step2}
+            statusLabel={steps.step2 === "completed" ? "Complete" : steps.step2 === "in-progress" ? "Analyzing" : ""}
             isActive={activeStep === 2}
             onToggle={() => {
               if (steps.step2 === "completed" || steps.step2 === "in-progress") {
@@ -500,23 +419,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             }}
             canToggle={steps.step2 === "completed" || steps.step2 === "in-progress"}
           >
-            {/* Operating conditions (above roles, always visible) */}
-            <div className="mb-4 space-y-1">
-              {[
-                "Works only inside your active LinkedIn tab",
-                "Does not auto-submit applications",
-                "No actions outside the current browser tab",
-              ].map((line) => (
-                <div key={line} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-0.5 w-0.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                  <p className="text-[10px] leading-relaxed text-muted-foreground/70">{line}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* Single-line system message (replace on update, no heading) */}
+            {/* Terminal / Comment feed */}
             {currentMessage && (
-              <div className="mb-4 rounded-sm bg-[#fafafa] px-3 py-2">
+              <div className="mb-4 rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2.5">
                 <AnimatePresence mode="wait">
                   <motion.p
                     key={currentMessage}
@@ -524,18 +429,26 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="font-mono text-[10px] text-muted-foreground/60"
+                    className="font-mono text-[10px] text-[#64748b]"
                   >
+                    <span className="mr-1.5 text-[#002366]">{'>'}</span>
                     {currentMessage}
                     {!analysisComplete && (
-                      <span className="ml-1.5 inline-block h-1 w-1 animate-pulse rounded-full bg-[#002d72]" />
+                      <span className="ml-1.5 inline-block h-1 w-1 animate-pulse rounded-full bg-[#002366]" />
                     )}
                   </motion.p>
                 </AnimatePresence>
               </div>
             )}
 
-            {/* Recommended roles (full-width buttons, no radio circles) */}
+            {/* "Apply Now" label above positions */}
+            {roles.length > 0 && (
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8]">
+                Apply Now
+              </p>
+            )}
+
+            {/* Positions as Ghost Buttons (direct action: click = redirect) */}
             {roles.length > 0 && (
               <div className="space-y-2">
                 {roles.map((role) => (
@@ -545,18 +458,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
-                    className={cn(
-                      "flex w-full items-center justify-between border px-4 py-3.5 text-left transition-all",
-                      selectedRole === role.title
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-foreground/20 hover:bg-secondary/30"
-                    )}
-                    onClick={() => handleSelectRole(role.title)}
+                    className="group flex w-full items-center justify-between rounded border border-[#e2e8f0] bg-transparent px-4 py-3.5 text-left transition-all hover:border-[#002366]/40 hover:shadow-[0_0_8px_rgba(0,35,102,0.06)]"
+                    onClick={() => handleRoleClick(role.title)}
                   >
-                    <span className="text-sm font-medium text-foreground">{role.title}</span>
-                    <span className="font-mono text-[10px] text-muted-foreground/50">
-                      {Math.round(role.confidence * 100)}%
+                    <span className="text-sm font-medium text-[#0f172a] transition-colors group-hover:text-[#002366]">
+                      {role.title}
                     </span>
+                    <ChevronRight className="h-3.5 w-3.5 text-[#cbd5e1] transition-all group-hover:translate-x-0.5 group-hover:text-[#002366]" strokeWidth={1.5} />
                   </motion.button>
                 ))}
               </div>
@@ -564,93 +472,264 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
             {/* Invalidated notice */}
             {steps.step2 === "invalidated" && (
-              <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
+              <div className="mt-3 flex items-center gap-2 rounded border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
                 <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
                 <p className="text-[10px] text-[#ca8a04]">
-                  Prepare was modified. Re-add sources to continue.
-                </p>
-              </div>
-            )}
-          </AccordionStep>
-
-          {/* ─── Step 3: GO APPLY ────────────────────────── */}
-          <AccordionStep
-            number={3}
-            title="Go Apply"
-            status={steps.step3}
-            isActive={activeStep === 3}
-            onToggle={() => {
-              if (steps.step3 === "in-progress" || steps.step3 === "completed") {
-                setActiveStep(3)
-              }
-            }}
-            canToggle={steps.step3 === "in-progress" || steps.step3 === "completed"}
-          >
-            {/* Ready state summary */}
-            {selectedRole && (
-              <div className="mb-4 space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">Target role:</span>
-                  <span className="text-[11px] font-medium text-foreground">{selectedRole}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-muted-foreground">Platform:</span>
-                  <span className="text-[11px] font-medium text-foreground">LinkedIn Easy Apply</span>
-                </div>
-              </div>
-            )}
-
-            {/* Confirmation checkbox */}
-            <button
-              type="button"
-              className="flex items-center gap-2"
-              onClick={() => setDontShowAgain(!dontShowAgain)}
-            >
-              {dontShowAgain ? (
-                <CheckSquare className="h-3.5 w-3.5 text-primary" strokeWidth={1.5} />
-              ) : (
-                <Square className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-              )}
-              <span className="text-xs text-muted-foreground">
-                {"Don't show this again"}
-              </span>
-            </button>
-
-            {/* Primary action */}
-            <div className="mt-5">
-              {steps.step3 === "completed" ? (
-                <div className="flex items-center gap-2 py-2">
-                  <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
-                  <span className="text-xs text-[#16a34a]">Tab group opened</span>
-                </div>
-              ) : (
-                <Button
-                  className="h-10 w-full bg-primary text-sm font-medium text-primary-foreground hover:bg-primary/90"
-                  onClick={handleGo}
-                >
-                  System ready. Proceed.
-                </Button>
-              )}
-            </div>
-
-            {/* Invalidated notice */}
-            {steps.step3 === "invalidated" && (
-              <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
-                <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
-                <p className="text-[10px] text-[#ca8a04]">
-                  Previous steps were modified. Complete them to proceed.
+                  Setup was modified. Re-upload to continue.
                 </p>
               </div>
             )}
           </AccordionStep>
         </div>
 
-        {/* ─── Footer (background noise) ─────────────────── */}
-        <div className="shrink-0 border-t border-border px-5 py-3">
-          <p className="text-center text-[9px] text-muted-foreground/50">
+        {/* ─── Footer ────────────────────────────────────── */}
+        <div className="shrink-0 border-t border-[#e2e8f0] px-5 py-3">
+          <p className="text-center text-[9px] text-[#94a3b8]">
             Y.EAA does not store credentials, cookies, or login sessions.
           </p>
         </div>
+
+        {/* ─── Authorization Overlay (Step 3) ────────────── */}
+        <AnimatePresence>
+          {showAuthOverlay && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
+            >
+              <div className="w-full max-w-[320px] px-6">
+                <h3 className="text-lg font-semibold text-[#0f172a]">Before you continue</h3>
+                <div className="mt-4 space-y-3">
+                  <p className="text-[12px] leading-relaxed text-[#64748b]">
+                    Y.EAA will open LinkedIn Easy Apply for the selected position. The system:
+                  </p>
+                  <ul className="space-y-1.5">
+                    {[
+                      "Operates only within your current browser tab",
+                      "Does not auto-submit any applications",
+                      "Does not store your LinkedIn credentials",
+                      "Will pre-fill form fields using your resume data",
+                    ].map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-[#64748b]" />
+                        <span className="text-[11px] leading-relaxed text-[#64748b]">{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {pendingRole && (
+                  <div className="mt-4 rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
+                    <span className="text-[10px] text-[#94a3b8]">Target position:</span>
+                    <p className="text-[12px] font-medium text-[#0f172a]">{pendingRole}</p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="mt-5 flex items-center gap-2"
+                  onClick={() => setAuthChecked(!authChecked)}
+                >
+                  {authChecked ? (
+                    <CheckSquare className="h-4 w-4 text-[#002366]" strokeWidth={1.5} />
+                  ) : (
+                    <Square className="h-4 w-4 text-[#cbd5e1]" strokeWidth={1.5} />
+                  )}
+                  <span className="text-[12px] text-[#334155]">I understand</span>
+                </button>
+
+                <div className="mt-5 flex gap-2">
+                  <button
+                    type="button"
+                    className="flex h-10 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[12px] font-medium text-[#64748b] transition-all hover:border-[#cbd5e1] hover:text-[#334155]"
+                    onClick={() => {
+                      setShowAuthOverlay(false)
+                      setPendingRole(null)
+                      setAuthChecked(false)
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex h-10 flex-1 items-center justify-center rounded text-[12px] font-semibold transition-all",
+                      authChecked
+                        ? "bg-[#002366] text-white hover:bg-[#001a4d] hover:shadow-[0_0_12px_rgba(0,35,102,0.15)]"
+                        : "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
+                    )}
+                    onClick={authChecked ? handleAuthorize : undefined}
+                    disabled={!authChecked}
+                  >
+                    Proceed
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ─── Resume Upload Modal Overlay ────────────────── */}
+        <AnimatePresence>
+          {resumeModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
+            >
+              <div className="w-full max-w-[320px] px-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-[#0f172a]">Add source material</h3>
+                  <button
+                    type="button"
+                    className="flex h-6 w-6 items-center justify-center text-[#94a3b8] hover:text-[#0f172a]"
+                    onClick={() => {
+                      setResumeModalOpen(false)
+                      setResumeModalMode("choose")
+                      setPasteText("")
+                    }}
+                  >
+                    <X className="h-4 w-4" strokeWidth={1.5} />
+                  </button>
+                </div>
+
+                {resumeModalMode === "choose" && (
+                  <div className="mt-6 space-y-3">
+                    {/* Upload PDF tile */}
+                    <button
+                      type="button"
+                      className="group flex w-full items-center gap-4 rounded border border-[#e2e8f0] bg-transparent px-5 py-5 text-left transition-all hover:border-[#002366]/40 hover:shadow-[0_0_8px_rgba(0,35,102,0.06)]"
+                      onClick={handleUploadPDF}
+                    >
+                      <Upload className="h-5 w-5 text-[#94a3b8] transition-colors group-hover:text-[#002366]" strokeWidth={1.5} />
+                      <div>
+                        <p className="text-sm font-medium text-[#0f172a]">Upload PDF</p>
+                        <p className="mt-0.5 text-[10px] text-[#94a3b8]">PDF, DOC, or DOCX</p>
+                      </div>
+                    </button>
+
+                    {/* Paste Text tile */}
+                    <button
+                      type="button"
+                      className="group flex w-full items-center gap-4 rounded border border-[#e2e8f0] bg-transparent px-5 py-5 text-left transition-all hover:border-[#002366]/40 hover:shadow-[0_0_8px_rgba(0,35,102,0.06)]"
+                      onClick={() => setResumeModalMode("paste")}
+                    >
+                      <ClipboardPaste className="h-5 w-5 text-[#94a3b8] transition-colors group-hover:text-[#002366]" strokeWidth={1.5} />
+                      <div>
+                        <p className="text-sm font-medium text-[#0f172a]">Paste Text</p>
+                        <p className="mt-0.5 text-[10px] text-[#94a3b8]">Plain text resume content</p>
+                      </div>
+                    </button>
+                  </div>
+                )}
+
+                {resumeModalMode === "paste" && (
+                  <div className="mt-6 space-y-3">
+                    <Textarea
+                      value={pasteText}
+                      onChange={(e) => setPasteText(e.target.value)}
+                      placeholder="Paste your resume text here"
+                      className="min-h-[160px] resize-none rounded border-[#e2e8f0] bg-transparent text-sm leading-relaxed placeholder:text-[#94a3b8] focus:border-[#002366]"
+                      autoFocus
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        className="flex h-9 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[11px] font-medium text-[#64748b] hover:border-[#cbd5e1]"
+                        onClick={() => setResumeModalMode("choose")}
+                      >
+                        Back
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex h-9 flex-1 items-center justify-center rounded text-[11px] font-semibold transition-all",
+                          pasteText.trim()
+                            ? "bg-[#002366] text-white hover:bg-[#001a4d]"
+                            : "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
+                        )}
+                        onClick={handlePasteSubmit}
+                        disabled={!pasteText.trim()}
+                      >
+                        Add source
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ─── Bottom Drawer: Referral Code ──────────────── */}
+        <AnimatePresence>
+          {drawerOpen && (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 z-40 bg-black/10"
+                onClick={() => setDrawerOpen(false)}
+              />
+              {/* Drawer */}
+              <motion.div
+                initial={{ y: "100%" }}
+                animate={{ y: 0 }}
+                exit={{ y: "100%" }}
+                transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+                className="absolute inset-x-0 bottom-0 z-50 rounded-t-xl border-t border-[#e2e8f0] bg-white"
+              >
+                <div className="px-5 pb-6 pt-4">
+                  {/* Drag handle */}
+                  <div className="mx-auto mb-4 h-1 w-8 rounded-full bg-[#e2e8f0]" />
+                  <p className="text-[12px] font-semibold text-[#0f172a]">Referral Code</p>
+                  <p className="mt-1 text-[10px] text-[#94a3b8]">
+                    Adds applications to your remaining balance.
+                  </p>
+                  <div className="mt-3 flex gap-2">
+                    <Input
+                      type="text"
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !referralLoading) handleApplyReferral()
+                      }}
+                      placeholder="Enter referral code"
+                      disabled={referralLoading}
+                      className="h-10 flex-1 rounded border-[#e2e8f0] bg-transparent text-sm placeholder:text-[#94a3b8]"
+                    />
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex h-10 shrink-0 items-center justify-center rounded px-5 text-[12px] font-semibold transition-all",
+                        referralCode.trim() && !referralLoading
+                          ? "bg-[#002366] text-white hover:bg-[#001a4d]"
+                          : "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
+                      )}
+                      onClick={handleApplyReferral}
+                      disabled={referralLoading || referralCode.trim().length === 0}
+                    >
+                      {referralLoading ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
+                      ) : (
+                        "Redeem"
+                      )}
+                    </button>
+                  </div>
+                  {referralError && (
+                    <p className="mt-2 text-[10px] text-red-500">{referralError}</p>
+                  )}
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
       </SheetContent>
     </Sheet>
   )
@@ -662,6 +741,7 @@ function AccordionStep({
   number,
   title,
   status,
+  statusLabel,
   isActive,
   onToggle,
   canToggle,
@@ -670,33 +750,39 @@ function AccordionStep({
   number: number
   title: string
   status: StepStatus
+  statusLabel?: string
   isActive: boolean
   onToggle: () => void
   canToggle: boolean
   children: React.ReactNode
 }) {
   return (
-    <div className="border-b border-border">
+    <div className="border-b border-[#e2e8f0]">
       {/* Step header (full-bar color) */}
       <button
         type="button"
         className={cn(
-          "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors",
+          "flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors",
           STATUS_BAR[status],
           canToggle ? "hover:opacity-90" : "cursor-default"
         )}
         onClick={onToggle}
         disabled={!canToggle}
       >
-        <span className={cn("font-mono text-[10px]", STATUS_TEXT[status])}>{number}</span>
-        <span className={cn("text-sm font-medium", STATUS_TEXT[status])}>{title}</span>
+        <span className={cn("font-mono text-[10px] font-bold", STATUS_TEXT[status])}>{number}</span>
+        <span className={cn("text-[13px] font-semibold", STATUS_TEXT[status])}>{title}</span>
+        {statusLabel && (
+          <span className={cn("ml-auto text-[10px] font-medium opacity-70", STATUS_TEXT[status])}>
+            {statusLabel}
+          </span>
+        )}
         {status === "completed" && (
-          <Check className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={2} />
+          <Check className={cn("h-3.5 w-3.5", statusLabel ? "ml-1.5" : "ml-auto", "text-white")} strokeWidth={2} />
         )}
         {status === "invalidated" && (
           <AlertCircle className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={1.5} />
         )}
-        {status === "in-progress" && (
+        {status === "in-progress" && !statusLabel && (
           <ChevronRight className={cn("ml-auto h-3.5 w-3.5 transition-transform", isActive && "rotate-90", STATUS_TEXT[status])} strokeWidth={1.5} />
         )}
       </button>
@@ -711,7 +797,7 @@ function AccordionStep({
             transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 pt-3">
+            <div className="px-5 pb-5 pt-4">
               {children}
             </div>
           </motion.div>
