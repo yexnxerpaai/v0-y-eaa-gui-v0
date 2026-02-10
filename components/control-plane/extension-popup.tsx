@@ -10,17 +10,18 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet"
 import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
 import {
   Upload,
   FileText,
   Key,
-  ChevronDown,
   AlertCircle,
   Loader2,
   Check,
-  Circle,
+  Globe,
+  HardDrive,
+  ClipboardPaste,
+  ChevronRight,
   CheckSquare,
   Square,
 } from "lucide-react"
@@ -44,32 +45,18 @@ interface ExtensionPopupProps {
 
 /* ─── Status Color Map ────────────────────────────────── */
 
-function statusDot(status: StepStatus) {
-  switch (status) {
-    case "completed":
-      return "bg-[#16a34a]"
-    case "in-progress":
-      return "bg-[#002d72]"
-    case "invalidated":
-      return "bg-[#ca8a04]"
-    case "not-started":
-    default:
-      return "bg-[#ca8a04]"
-  }
+const STATUS_BAR: Record<StepStatus, string> = {
+  completed: "bg-[#16a34a]",
+  "in-progress": "bg-[#002d72]",
+  invalidated: "bg-[#ca8a04]",
+  "not-started": "bg-[#e5e5e5]",
 }
 
-function statusBorder(status: StepStatus) {
-  switch (status) {
-    case "completed":
-      return "border-l-[#16a34a]"
-    case "in-progress":
-      return "border-l-[#002d72]"
-    case "invalidated":
-      return "border-l-[#ca8a04]"
-    case "not-started":
-    default:
-      return "border-l-[#e5e5e5]"
-  }
+const STATUS_TEXT: Record<StepStatus, string> = {
+  completed: "text-white",
+  "in-progress": "text-white",
+  invalidated: "text-white",
+  "not-started": "text-foreground",
 }
 
 /* ─── Mock: Referral Code Verification ────────────────── */
@@ -87,12 +74,13 @@ async function verifyReferralCode(
 
 /* ─── Mock: Resume Analysis ───────────────────────────── */
 
-const ANALYSIS_LINES = [
-  "Parsing resume structure\u2026",
+const ANALYSIS_MESSAGES = [
+  "Parsing source material\u2026",
   "Extracting experience timeline\u2026",
   "Mapping skills to market taxonomy\u2026",
   "Analyzing career trajectory\u2026",
   "Identifying target roles\u2026",
+  "Finalizing recommendations\u2026",
 ]
 
 const MOCK_ROLES = [
@@ -113,35 +101,36 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     step3: "not-started",
   })
 
-  // Step 1 data
-  const [resumeText, setResumeText] = useState("")
+  // Step 1 state
   const [apiKey, setApiKey] = useState("")
   const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle")
+  const [sources, setSources] = useState<{ name: string; type: string }[]>([])
+  const [showPasteInput, setShowPasteInput] = useState(false)
+  const [pasteText, setPasteText] = useState("")
 
-  // Step 2 data
-  const [analysisLog, setAnalysisLog] = useState<string[]>([])
+  // Step 2 state
+  const [currentMessage, setCurrentMessage] = useState("")
   const [roles, setRoles] = useState<typeof MOCK_ROLES>([])
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [analysisComplete, setAnalysisComplete] = useState(false)
 
-  // Step 3 data
+  // Step 3 state
   const [dontShowAgain, setDontShowAgain] = useState(false)
 
-  // Referral
+  // Referral state
   const [referralCode, setReferralCode] = useState("")
   const [referralLoading, setReferralLoading] = useState(false)
   const [referralError, setReferralError] = useState<string | null>(null)
   const [appliedCodes, setAppliedCodes] = useState<string[]>([])
 
-  const hasResume = resumeText.trim().length > 0
+  const hasSources = sources.length > 0
 
-  /* ─── Step 1: API Key Validation ────────────────────── */
+  /* ─── Step 1: API Key Validation (status-only, not blocking) */
 
   const handleValidateKey = useCallback(async () => {
     if (!apiKey.trim()) return
     setKeyStatus("checking")
     await new Promise((r) => setTimeout(r, 1500))
-    // Mock: any key starting with "sk-" is valid
     if (apiKey.startsWith("sk-") && apiKey.length > 5) {
       setKeyStatus("valid")
     } else {
@@ -149,16 +138,39 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     }
   }, [apiKey])
 
-  /* ─── Step 1: Implicit completion check ─────────────── */
+  /* ─── Step 1: Source interaction auto-completes step ──── */
 
   useEffect(() => {
-    if (keyStatus === "valid" && hasResume && steps.step1 === "in-progress") {
+    if (hasSources && steps.step1 === "in-progress") {
       setSteps((prev) => ({ ...prev, step1: "completed", step2: "in-progress" }))
       setActiveStep(2)
     }
-  }, [keyStatus, hasResume, steps.step1])
+  }, [hasSources, steps.step1])
 
-  /* ─── Step 1 Reopen (Invalidates downstream) ───────── */
+  /* ─── Step 1: Add source helpers ─────────────────────── */
+
+  const handleAddFile = useCallback(() => {
+    // Mock: simulate file picker
+    setSources((prev) => [...prev, { name: "resume_2026.pdf", type: "PDF" }])
+  }, [])
+
+  const handleAddWebsite = useCallback(() => {
+    setSources((prev) => [...prev, { name: "linkedin.com/in/profile", type: "URL" }])
+  }, [])
+
+  const handleAddDrive = useCallback(() => {
+    setSources((prev) => [...prev, { name: "Google Drive - Resume.docx", type: "Drive" }])
+  }, [])
+
+  const handleAddPaste = useCallback(() => {
+    if (pasteText.trim()) {
+      setSources((prev) => [...prev, { name: `Pasted text (${pasteText.trim().split(/\s+/).length} words)`, type: "Text" }])
+      setPasteText("")
+      setShowPasteInput(false)
+    }
+  }, [pasteText])
+
+  /* ─── Step 1 Reopen (Invalidates downstream) ─────────── */
 
   const handleReopenStep1 = useCallback(() => {
     setActiveStep(1)
@@ -167,14 +179,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
       step2: steps.step2 !== "not-started" ? "invalidated" : "not-started",
       step3: steps.step3 !== "not-started" ? "invalidated" : "not-started",
     })
-    setKeyStatus("idle")
-    setAnalysisLog([])
+    setSources([])
+    setCurrentMessage("")
     setRoles([])
     setSelectedRole(null)
     setAnalysisComplete(false)
+    analysisRef.current = false
   }, [steps])
 
-  /* ─── Step 2 Analysis (auto-starts) ─────────────────── */
+  /* ─── Step 2 Analysis (auto-starts, single-line replace) */
 
   const analysisRef = useRef(false)
 
@@ -183,12 +196,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     analysisRef.current = true
 
     let idx = 0
-    const logInterval = setInterval(() => {
-      if (idx < ANALYSIS_LINES.length) {
-        setAnalysisLog((prev) => [...prev, ANALYSIS_LINES[idx]])
+    const msgInterval = setInterval(() => {
+      if (idx < ANALYSIS_MESSAGES.length) {
+        setCurrentMessage(ANALYSIS_MESSAGES[idx])
         idx++
       } else {
-        clearInterval(logInterval)
+        clearInterval(msgInterval)
       }
     }, 800)
 
@@ -203,7 +216,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     )
 
     return () => {
-      clearInterval(logInterval)
+      clearInterval(msgInterval)
       for (const t of roleTimeouts) clearTimeout(t)
     }
   }, [steps.step2])
@@ -249,27 +262,21 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         side="right"
         className="flex w-[380px] flex-col border-l border-border bg-background p-0 sm:w-[380px]"
       >
-        {/* ─── Header (Global) ───────────────────────────── */}
+        {/* ─── Header ─────────────────────────────────────── */}
         <div className="shrink-0 border-b border-border px-5 py-4">
           <SheetHeader className="space-y-0">
             <div className="flex items-center justify-between">
-              <div className="flex items-baseline gap-1.5">
-                <SheetTitle className="text-sm font-semibold text-foreground">
-                  Y.EAA
-                </SheetTitle>
-                <span className="text-[10px] text-muted-foreground">LinkedIn Easy Apply Assistant</span>
-              </div>
-              {/* Quota (clickable) */}
+              <SheetTitle className="text-sm font-semibold text-foreground">
+                Y.EAA
+              </SheetTitle>
+              {/* Quota chip (clickable, opens tray) */}
               <button
                 type="button"
-                className="flex items-center gap-1.5"
+                className="flex items-center gap-1 border border-border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/20 hover:text-foreground"
                 onClick={() => setQuotaTrayOpen(!quotaTrayOpen)}
               >
-                <span className="font-mono text-[11px] font-medium text-foreground">
-                  {quota}
-                </span>
-                <span className="text-[10px] text-muted-foreground">applications remaining</span>
-                <span className="ml-0.5 text-sm text-muted-foreground">+</span>
+                <span className="text-[10px] text-muted-foreground">Quota:</span>
+                <span className="font-mono font-medium text-foreground">{quota}</span>
               </button>
             </div>
           </SheetHeader>
@@ -340,10 +347,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             }}
             canToggle={steps.step1 === "completed" || steps.step1 === "in-progress"}
           >
-            {/* API Key */}
+            {/* LLM API Key (status-only, never blocks progression) */}
             <div className="space-y-2">
-              <p className="text-[11px] text-muted-foreground">API Key</p>
-              <p className="text-[10px] text-muted-foreground">LLM API key</p>
+              <p className="text-[11px] text-muted-foreground">LLM API Key</p>
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
@@ -354,7 +360,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       setApiKey(e.target.value)
                       if (keyStatus !== "idle") setKeyStatus("idle")
                     }}
-                    placeholder="sk-\u2026"
+                    placeholder="sk-..."
                     className="h-8 border-border bg-transparent pl-8 text-sm placeholder:text-muted-foreground"
                   />
                 </div>
@@ -388,37 +394,96 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               )}
             </div>
 
-            {/* Source material */}
-            <div className="mt-5 space-y-2">
+            {/* Source material (NotebookLM-style container) */}
+            <div className="mt-5 space-y-3">
               <p className="text-[11px] text-muted-foreground">Source material</p>
-              <p className="text-[10px] text-muted-foreground">
-                Provide source material to help Y.EAA understand your background.
-              </p>
-              <Textarea
-                value={resumeText}
-                onChange={(e) => setResumeText(e.target.value)}
-                placeholder="Paste text here"
-                className="min-h-[100px] resize-none border-border bg-transparent text-sm leading-relaxed placeholder:text-muted-foreground focus:border-primary"
-              />
-              <p className="text-center text-[10px] text-muted-foreground">or</p>
-              <button
-                type="button"
-                className="flex w-full items-center justify-center gap-2 border border-dashed border-border py-3 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
-              >
-                <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
-                Upload files
-              </button>
-              <p className="text-center text-[10px] text-muted-foreground">
-                PDF, DOC, or plain text
-              </p>
-              {hasResume && (
-                <div className="flex items-center gap-1.5">
-                  <FileText className="h-3 w-3 text-muted-foreground" strokeWidth={1.5} />
-                  <span className="text-[10px] text-muted-foreground">
-                    {resumeText.split(/\s+/).length} words loaded
-                  </span>
+
+              {/* Added sources list */}
+              {sources.length > 0 && (
+                <div className="space-y-1.5">
+                  {sources.map((src, i) => (
+                    <div
+                      key={`src-${i}`}
+                      className="flex items-center gap-2 border border-border px-3 py-2"
+                    >
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" strokeWidth={1.5} />
+                      <span className="flex-1 truncate text-[11px] text-foreground">{src.name}</span>
+                      <span className="shrink-0 text-[9px] uppercase text-muted-foreground">{src.type}</span>
+                    </div>
+                  ))}
                 </div>
               )}
+
+              {/* Source action buttons (NotebookLM-style) */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={handleAddFile}
+                >
+                  <Upload className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Upload files
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={handleAddWebsite}
+                >
+                  <Globe className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Website
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={handleAddDrive}
+                >
+                  <HardDrive className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Drive
+                </button>
+                <button
+                  type="button"
+                  className="flex items-center gap-2 border border-dashed border-border px-3 py-2.5 text-[11px] text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground"
+                  onClick={() => setShowPasteInput(!showPasteInput)}
+                >
+                  <ClipboardPaste className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  Copied text
+                </button>
+              </div>
+
+              {/* Inline paste input (only shown on click) */}
+              <AnimatePresence>
+                {showPasteInput && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="flex gap-2">
+                      <Input
+                        type="text"
+                        value={pasteText}
+                        onChange={(e) => setPasteText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleAddPaste()
+                        }}
+                        placeholder="Paste text content"
+                        className="h-8 flex-1 border-border bg-transparent text-xs placeholder:text-muted-foreground"
+                        autoFocus
+                      />
+                      <Button
+                        variant="outline"
+                        className="h-8 shrink-0 border-border bg-transparent px-3 text-[11px] font-medium text-foreground hover:bg-secondary"
+                        onClick={handleAddPaste}
+                        disabled={!pasteText.trim()}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </AccordionStep>
 
@@ -435,39 +500,44 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             }}
             canToggle={steps.step2 === "completed" || steps.step2 === "in-progress"}
           >
-            {/* System activity (background, secondary) */}
-            <div className="space-y-2">
-              <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
-                System activity
-              </p>
-              <div className="rounded-sm bg-[#fafafa] p-3">
-                <div className="max-h-[120px] space-y-1 overflow-y-auto font-mono text-[11px] leading-relaxed">
-                  {analysisLog.map((line, i) => (
-                    <motion.div
-                      key={`log-${i}`}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.15 }}
-                      className="text-muted-foreground"
-                    >
-                      {line}
-                    </motion.div>
-                  ))}
-                  {!analysisComplete && steps.step2 === "in-progress" && (
-                    <div className="flex items-center gap-1.5">
-                      <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-[#002d72]" />
-                    </div>
-                  )}
+            {/* Operating conditions (above roles, always visible) */}
+            <div className="mb-4 space-y-1">
+              {[
+                "Works only inside your active LinkedIn tab",
+                "Does not auto-submit applications",
+                "No actions outside the current browser tab",
+              ].map((line) => (
+                <div key={line} className="flex items-start gap-2">
+                  <span className="mt-1.5 h-0.5 w-0.5 shrink-0 rounded-full bg-muted-foreground/50" />
+                  <p className="text-[10px] leading-relaxed text-muted-foreground/70">{line}</p>
                 </div>
-              </div>
+              ))}
             </div>
 
-            {/* Target role (Primary decision surface) */}
+            {/* Single-line system message (replace on update, no heading) */}
+            {currentMessage && (
+              <div className="mb-4 rounded-sm bg-[#fafafa] px-3 py-2">
+                <AnimatePresence mode="wait">
+                  <motion.p
+                    key={currentMessage}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="font-mono text-[10px] text-muted-foreground/60"
+                  >
+                    {currentMessage}
+                    {!analysisComplete && (
+                      <span className="ml-1.5 inline-block h-1 w-1 animate-pulse rounded-full bg-[#002d72]" />
+                    )}
+                  </motion.p>
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Recommended roles (full-width buttons, no radio circles) */}
             {roles.length > 0 && (
-              <div className="mt-5 space-y-2">
-                <p className="text-[10px] uppercase tracking-normal text-muted-foreground">
-                  Recommended roles
-                </p>
+              <div className="space-y-2">
                 {roles.map((role) => (
                   <motion.button
                     key={role.title}
@@ -476,24 +546,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
                     className={cn(
-                      "flex w-full items-center justify-between border px-4 py-3 text-left transition-colors",
+                      "flex w-full items-center justify-between border px-4 py-3.5 text-left transition-all",
                       selectedRole === role.title
                         ? "border-primary bg-primary/5"
-                        : "border-border hover:border-foreground/20"
+                        : "border-border hover:border-foreground/20 hover:bg-secondary/30"
                     )}
                     onClick={() => handleSelectRole(role.title)}
                   >
-                    <div className="flex items-center gap-2.5">
-                      {selectedRole === role.title ? (
-                        <div className="flex h-4 w-4 items-center justify-center rounded-full bg-primary">
-                          <Check className="h-2.5 w-2.5 text-primary-foreground" strokeWidth={2.5} />
-                        </div>
-                      ) : (
-                        <Circle className="h-4 w-4 text-muted-foreground" strokeWidth={1} />
-                      )}
-                      <span className="text-sm text-foreground">{role.title}</span>
-                    </div>
-                    <span className="font-mono text-[10px] text-muted-foreground">
+                    <span className="text-sm font-medium text-foreground">{role.title}</span>
+                    <span className="font-mono text-[10px] text-muted-foreground/50">
                       {Math.round(role.confidence * 100)}%
                     </span>
                   </motion.button>
@@ -501,29 +562,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
             )}
 
-            {/* Operating conditions */}
-            <div className="mt-5 space-y-1.5">
-              <p className="text-[10px] text-muted-foreground">
-                Y.EAA operates under the following conditions:
-              </p>
-              {[
-                "Works only inside your active LinkedIn tab",
-                "Does not auto-submit applications",
-                "No actions outside the current browser tab",
-              ].map((line) => (
-                <div key={line} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-0.5 w-0.5 shrink-0 rounded-full bg-muted-foreground" />
-                  <p className="text-[10px] leading-relaxed text-muted-foreground">{line}</p>
-                </div>
-              ))}
-            </div>
-
             {/* Invalidated notice */}
             {steps.step2 === "invalidated" && (
               <div className="mt-3 flex items-center gap-2 border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
                 <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
                 <p className="text-[10px] text-[#ca8a04]">
-                  Prepare was modified. Re-validate to continue.
+                  Prepare was modified. Re-add sources to continue.
                 </p>
               </div>
             )}
@@ -556,7 +600,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
             )}
 
-            {/* Confirmation */}
+            {/* Confirmation checkbox */}
             <button
               type="button"
               className="flex items-center gap-2"
@@ -601,9 +645,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           </AccordionStep>
         </div>
 
-        {/* ─── Footer (Global, Persistent) ───────────────── */}
+        {/* ─── Footer (background noise) ─────────────────── */}
         <div className="shrink-0 border-t border-border px-5 py-3">
-          <p className="text-center text-[10px] text-muted-foreground">
+          <p className="text-center text-[9px] text-muted-foreground/50">
             Y.EAA does not store credentials, cookies, or login sessions.
           </p>
         </div>
@@ -632,33 +676,28 @@ function AccordionStep({
   children: React.ReactNode
 }) {
   return (
-    <div
-      className={cn(
-        "border-b border-border border-l-2 transition-colors duration-200",
-        statusBorder(status)
-      )}
-    >
-      {/* Step header */}
+    <div className="border-b border-border">
+      {/* Step header (full-bar color) */}
       <button
         type="button"
         className={cn(
-          "flex w-full items-center gap-3 px-5 py-3.5 text-left transition-colors",
-          canToggle ? "hover:bg-secondary/50" : "cursor-default",
-          isActive && "bg-secondary/30"
+          "flex w-full items-center gap-3 px-5 py-3 text-left transition-colors",
+          STATUS_BAR[status],
+          canToggle ? "hover:opacity-90" : "cursor-default"
         )}
         onClick={onToggle}
         disabled={!canToggle}
       >
-        <div className={cn("h-2 w-2 shrink-0 rounded-full", statusDot(status))} />
-        <div className="flex items-baseline gap-2">
-          <span className="font-mono text-[10px] text-muted-foreground">{number}</span>
-          <span className="text-sm font-medium text-foreground">{title}</span>
-        </div>
+        <span className={cn("font-mono text-[10px]", STATUS_TEXT[status])}>{number}</span>
+        <span className={cn("text-sm font-medium", STATUS_TEXT[status])}>{title}</span>
         {status === "completed" && (
-          <Check className="ml-auto h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
+          <Check className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={2} />
         )}
         {status === "invalidated" && (
-          <AlertCircle className="ml-auto h-3.5 w-3.5 text-[#ca8a04]" strokeWidth={1.5} />
+          <AlertCircle className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={1.5} />
+        )}
+        {status === "in-progress" && (
+          <ChevronRight className={cn("ml-auto h-3.5 w-3.5 transition-transform", isActive && "rotate-90", STATUS_TEXT[status])} strokeWidth={1.5} />
         )}
       </button>
 
@@ -672,7 +711,7 @@ function AccordionStep({
             transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 pt-1">
+            <div className="px-5 pb-5 pt-3">
               {children}
             </div>
           </motion.div>
