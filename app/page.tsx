@@ -31,7 +31,7 @@ export default function ControlPlane() {
         <div className="mx-auto max-w-6xl px-8">
           <div className="flex h-10 items-center justify-between">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-sm font-semibold tracking-tight text-foreground">
+              <span className="text-sm font-semibold text-foreground">
                 Y.EAA
               </span>
               <span className="text-[10px] font-medium text-muted-foreground">

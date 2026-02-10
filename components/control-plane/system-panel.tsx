@@ -46,7 +46,7 @@ export function SystemPanel({ open, onOpenChange }: SystemPanelProps) {
       <SheetContent className="w-72 border-l border-border bg-background p-0">
         <div className="p-6">
           <SheetHeader className="space-y-0">
-            <SheetTitle className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <SheetTitle className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
               System
             </SheetTitle>
           </SheetHeader>
@@ -72,7 +72,7 @@ export function SystemPanel({ open, onOpenChange }: SystemPanelProps) {
 
           {/* Version */}
           <div className="space-y-3">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
               Version
             </p>
             <div className="space-y-2">

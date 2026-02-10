@@ -100,7 +100,7 @@ export function JobProfilesSection({ isActive }: JobProfilesSectionProps) {
     )}>
       {/* Section Header */}
       <div className="shrink-0 border-b border-border px-6 py-4">
-        <h2 className="text-xl font-semibold tracking-tight text-foreground">
+        <h2 className="text-xl font-semibold text-foreground">
           Job Profiles
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">

@@ -55,7 +55,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         <div className="border-b border-border px-5 py-4">
           <SheetHeader className="space-y-0">
             <div className="flex items-baseline gap-1.5">
-              <SheetTitle className="text-sm font-semibold tracking-tight text-foreground">
+              <SheetTitle className="text-sm font-semibold text-foreground">
                 Y.EAA Extension
               </SheetTitle>
               <span className="text-[10px] text-muted-foreground">MVP</span>
@@ -157,7 +157,7 @@ function SetupState({ onContinue }: { onContinue: () => void }) {
         {/* Resume Input */}
         <div className="border-b border-border px-5 py-5">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
               Resume
             </p>
             <button
@@ -191,7 +191,7 @@ function SetupState({ onContinue }: { onContinue: () => void }) {
             className="flex w-full items-center justify-between"
             onClick={() => setShowApiKey(!showApiKey)}
           >
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
               LLM API Key
             </p>
             <span className="text-xs text-muted-foreground">
@@ -219,7 +219,7 @@ function SetupState({ onContinue }: { onContinue: () => void }) {
 
         {/* Referral Code */}
         <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
             Referral Code (Internal Testing)
           </p>
           <div className="mt-3 flex gap-2">
@@ -270,7 +270,7 @@ function SetupState({ onContinue }: { onContinue: () => void }) {
         {/* Quota Display */}
         <div className="px-5 py-5">
           <div className="flex items-center justify-between">
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
               Quota
             </p>
             {apiKey ? (
@@ -319,7 +319,7 @@ function ConsentState({
   return (
     <>
       <div className="flex-1 overflow-y-auto px-5 py-6">
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
+        <h2 className="text-lg font-semibold tracking-normal text-foreground">
           Before you continue
         </h2>
 
@@ -416,7 +416,7 @@ function ReadyState({
         {/* Quota */}
         <div className="border-b border-border px-5 py-4">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
               Quota
             </span>
             <span className="font-mono text-xs text-foreground">{freeQuota} remaining</span>
@@ -430,7 +430,7 @@ function ReadyState({
             className="flex w-full items-center justify-between"
             onClick={() => setResumeExpanded(!resumeExpanded)}
           >
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            <span className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
               Resume
             </span>
             {resumeExpanded ? (
@@ -500,7 +500,7 @@ function RunningState({ onPause }: { onPause: () => void }) {
 
         {/* Progress */}
         <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
             Progress
           </p>
           <div className="mt-3 flex items-baseline gap-1.5">
@@ -523,7 +523,7 @@ function RunningState({ onPause }: { onPause: () => void }) {
 
         {/* Recent Activity */}
         <div className="px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
             Activity
           </p>
           <div className="mt-3 space-y-2">
@@ -657,7 +657,7 @@ function CompletedState({ onReset }: { onReset: () => void }) {
 
         {/* Summary */}
         <div className="border-b border-border px-5 py-5">
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
             Summary
           </p>
           <div className="mt-4 space-y-3">
@@ -686,7 +686,7 @@ function CompletedState({ onReset }: { onReset: () => void }) {
           <div className="px-5 py-5">
             <div className="flex items-center gap-2">
               <AlertCircle className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-normal text-muted-foreground">
                 Skipped Fields
               </p>
             </div>
