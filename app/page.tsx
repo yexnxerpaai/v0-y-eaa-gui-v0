@@ -41,7 +41,7 @@ export default function ControlPlane() {
             <div className="flex items-center gap-3">
               <button
                 type="button"
-                className="flex h-7 items-center gap-1.5 border border-primary/20 bg-primary/5 px-2.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+                className="flex h-7 items-center gap-1.5 border border-[#ADD8E6]/40 bg-[#ADD8E6]/10 px-2.5 text-[11px] font-medium text-[#334155] transition-colors hover:bg-[#ADD8E6]/20"
                 onClick={() => setExtensionOpen(true)}
               >
                 <Puzzle className="h-3 w-3" strokeWidth={1.5} />

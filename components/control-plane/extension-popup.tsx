@@ -1,15 +1,13 @@
 "use client"
 
 import React from "react"
-
-import { useState, useCallback, useEffect, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
-import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
@@ -23,15 +21,20 @@ import {
   X,
   ClipboardPaste,
   ChevronRight,
-  CheckSquare,
+  Pause,
   Square,
+  Play,
+  Lock,
+  MapPin,
+  Briefcase,
+  Shield,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
 
 /* ─── Types ───────────────────────────────────────────── */
 
-type StepStatus = "not-started" | "in-progress" | "completed" | "invalidated"
+type StepStatus = "not-started" | "in-progress" | "completed"
 
 interface StepState {
   step1: StepStatus
@@ -39,28 +42,29 @@ interface StepState {
   step3: StepStatus
 }
 
+type RunState = "idle" | "running" | "paused" | "stopped"
+
 interface ExtensionPopupProps {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-/* ─── Status Color Map (Industrial Silence) ──────────── */
+/* ─── Status Color Map ────────────────────────────────── */
+/* Yellow = not started, Blue (#ADD8E6) = active, Green = completed */
 
 const STATUS_BAR: Record<StepStatus, string> = {
   completed: "bg-[#16a34a]",
-  "in-progress": "bg-[#002366]",
-  invalidated: "bg-[#ca8a04]",
-  "not-started": "bg-[#e2e8f0]",
+  "in-progress": "bg-[#ADD8E6]",
+  "not-started": "bg-[#FFF44F]",
 }
 
 const STATUS_TEXT: Record<StepStatus, string> = {
   completed: "text-white",
-  "in-progress": "text-white",
-  invalidated: "text-white",
-  "not-started": "text-[#64748b]",
+  "in-progress": "text-[#0f172a]",
+  "not-started": "text-[#0f172a]",
 }
 
-/* ─── Mock: Referral Code Verification ────────────────── */
+/* ─── Mock: Referral Code ─────────────────────────────── */
 
 async function verifyReferralCode(
   code: string
@@ -73,164 +77,104 @@ async function verifyReferralCode(
   return { success: false, error: "Invalid or already used" }
 }
 
-/* ─── Mock: Resume Analysis ───────────────────────────── */
-
-const ANALYSIS_MESSAGES = [
-  "Analyzing resume structure\u2026",
-  "Mapping career trajectory\u2026",
-  "Extracting experience timeline\u2026",
-  "Mapping skills to market taxonomy\u2026",
-  "Identifying target roles\u2026",
-  "Finalizing recommendations\u2026",
-]
-
-const MOCK_ROLES = [
-  { title: "Senior Software Engineer", confidence: 0.94 },
-  { title: "Staff Engineer", confidence: 0.87 },
-]
-
 /* ─── Main Component ──────────────────────────────────── */
 
 export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [quota, setQuota] = useState(5)
   const [drawerOpen, setDrawerOpen] = useState(false)
+  const [useOwnKey, setUseOwnKey] = useState(false)
+  const [apiKey, setApiKey] = useState("")
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1)
   const [steps, setSteps] = useState<StepState>({
-    step1: "in-progress",
+    step1: "not-started",
     step2: "not-started",
     step3: "not-started",
   })
 
-  // Step 1 state
-  const [apiKey, setApiKey] = useState("")
-  const [keyStatus, setKeyStatus] = useState<"idle" | "checking" | "valid" | "invalid">("idle")
+  // Quick link
+  const [jobLink, setJobLink] = useState("")
+
+  // Step 1: Upload Resume
   const [resumeModalOpen, setResumeModalOpen] = useState(false)
   const [resumeModalMode, setResumeModalMode] = useState<"choose" | "paste" | null>(null)
   const [pasteText, setPasteText] = useState("")
-  const [sources, setSources] = useState<{ name: string; type: string }[]>([])
+  const [parsingStatus, setParsingStatus] = useState<"idle" | "parsing" | "done">("idle")
+  const [resumeName, setResumeName] = useState<string | null>(null)
 
-  // Step 2 state
-  const [currentMessage, setCurrentMessage] = useState("")
-  const [roles, setRoles] = useState<typeof MOCK_ROLES>([])
-  const [analysisComplete, setAnalysisComplete] = useState(false)
+  // Step 2: Create Job Profile
+  const [profileLocked, setProfileLocked] = useState(false)
+  const [locationRemote, setLocationRemote] = useState(true)
+  const [seniority, setSeniority] = useState("senior")
+  const [jobType, setJobType] = useState("full-time")
+  const [sponsorship, setSponsorship] = useState(true)
+  const [eeoOptOut, setEeoOptOut] = useState(true)
 
-  // Step 3 state (authorization overlay)
-  const [showAuthOverlay, setShowAuthOverlay] = useState(false)
-  const [authChecked, setAuthChecked] = useState(false)
-  const [pendingRole, setPendingRole] = useState<string | null>(null)
+  // Step 3: Search Results Controller
+  const [detectedPositions, setDetectedPositions] = useState(14)
+  const [runState, setRunState] = useState<RunState>("idle")
 
-  // Referral state
+  // Referral
   const [referralCode, setReferralCode] = useState("")
   const [referralLoading, setReferralLoading] = useState(false)
   const [referralError, setReferralError] = useState<string | null>(null)
   const [appliedCodes, setAppliedCodes] = useState<string[]>([])
 
-  const hasSources = sources.length > 0
   const quotaIsZero = quota === 0
 
-  /* ─── Step 1: API Key Validation (status-only, not blocking) */
+  /* ─── Step 1: Resume Upload ─────────────────────────── */
 
-  const handleValidateKey = useCallback(async () => {
-    if (!apiKey.trim()) return
-    setKeyStatus("checking")
-    await new Promise((r) => setTimeout(r, 1500))
-    if (apiKey.startsWith("sk-") && apiKey.length > 5) {
-      setKeyStatus("valid")
-    } else {
-      setKeyStatus("invalid")
-    }
-  }, [apiKey])
-
-  /* ─── Step 1: Source auto-completes step ────────────── */
-
-  useEffect(() => {
-    if (hasSources && steps.step1 === "in-progress") {
-      setSteps((prev) => ({ ...prev, step1: "completed", step2: "in-progress" }))
-      setActiveStep(2)
-    }
-  }, [hasSources, steps.step1])
-
-  /* ─── Step 1: Resume modal helpers ─────────────────── */
+  const simulateParsing = useCallback((name: string) => {
+    setResumeName(name)
+    setParsingStatus("parsing")
+    setSteps((prev) => ({ ...prev, step1: "in-progress" }))
+    setActiveStep(1)
+    setTimeout(() => {
+      setParsingStatus("done")
+      setSteps((prev) => ({ ...prev, step1: "completed", step2: prev.step2 === "not-started" ? "in-progress" : prev.step2 }))
+      setTimeout(() => setActiveStep(2), 400)
+    }, 2500)
+  }, [])
 
   const handleUploadPDF = useCallback(() => {
-    setSources((prev) => [...prev, { name: "resume_2026.pdf", type: "PDF" }])
     setResumeModalOpen(false)
     setResumeModalMode(null)
-  }, [])
+    simulateParsing("resume_2026.pdf")
+  }, [simulateParsing])
 
   const handlePasteSubmit = useCallback(() => {
     if (pasteText.trim()) {
-      setSources((prev) => [
-        ...prev,
-        { name: `Pasted (${pasteText.trim().split(/\s+/).length} words)`, type: "Text" },
-      ])
-      setPasteText("")
       setResumeModalOpen(false)
       setResumeModalMode(null)
+      simulateParsing(`Pasted (${pasteText.trim().split(/\s+/).length} words)`)
+      setPasteText("")
     }
-  }, [pasteText])
+  }, [pasteText, simulateParsing])
 
-  /* ─── Step 1 Reopen (Invalidates downstream) ────────── */
+  /* ─── Step 2: Lock after first run ──────────────────── */
 
-  const handleReopenStep1 = useCallback(() => {
-    setActiveStep(1)
-    setSteps({
-      step1: "in-progress",
-      step2: steps.step2 !== "not-started" ? "invalidated" : "not-started",
-      step3: steps.step3 !== "not-started" ? "invalidated" : "not-started",
-    })
-    setSources([])
-    setCurrentMessage("")
-    setRoles([])
-    setAnalysisComplete(false)
-    setPendingRole(null)
-    analysisRef.current = false
-  }, [steps])
-
-  /* ─── Step 2 Analysis (auto-starts) ────────────────── */
-
-  const analysisRef = useRef(false)
-
-  useEffect(() => {
-    if (steps.step2 !== "in-progress" || analysisRef.current) return
-    analysisRef.current = true
-
-    let idx = 0
-    const msgInterval = setInterval(() => {
-      if (idx < ANALYSIS_MESSAGES.length) {
-        setCurrentMessage(ANALYSIS_MESSAGES[idx])
-        idx++
-      } else {
-        clearInterval(msgInterval)
-      }
-    }, 800)
-
-    const roleTimeouts = MOCK_ROLES.map((role, i) =>
-      setTimeout(() => {
-        setRoles((prev) => [...prev, role])
-        if (i === MOCK_ROLES.length - 1) setAnalysisComplete(true)
-      }, 3000 + i * 1500)
-    )
-
-    return () => {
-      clearInterval(msgInterval)
-      for (const t of roleTimeouts) clearTimeout(t)
-    }
-  }, [steps.step2])
-
-  /* ─── Step 2: Direct action (click role = trigger auth overlay) */
-
-  const handleRoleClick = useCallback((title: string) => {
-    setPendingRole(title)
-    setShowAuthOverlay(true)
+  const handleStartRun = useCallback(() => {
+    setProfileLocked(true)
+    setSteps((prev) => ({ ...prev, step2: "completed", step3: "in-progress" }))
+    setActiveStep(3)
   }, [])
 
-  /* ─── Step 3: Authorization confirmed ──────────────── */
+  /* ─── Step 3: Run State ─────────────────────────────── */
 
-  const handleAuthorize = useCallback(() => {
-    setShowAuthOverlay(false)
-    setSteps((prev) => ({ ...prev, step2: "completed", step3: "completed" }))
-    // Mock: in production this would trigger LinkedIn redirect
+  const handleApplyAll = useCallback(() => {
+    setRunState("running")
+  }, [])
+
+  const handlePause = useCallback(() => {
+    setRunState("paused")
+  }, [])
+
+  const handleResume = useCallback(() => {
+    setRunState("running")
+  }, [])
+
+  const handleStop = useCallback(() => {
+    setRunState("stopped")
+    setQuota((prev) => Math.max(prev - 1, 0))
   }, [])
 
   /* ─── Referral ──────────────────────────────────────── */
@@ -246,7 +190,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setReferralError(null)
     const result = await verifyReferralCode(code)
     if (result.success && result.quotaAdded) {
-      setQuota((prev) => prev + result.quotaAdded!)
+      setQuota((prev) => Math.min(prev + result.quotaAdded!, 15))
       setAppliedCodes((prev) => [...prev, code])
       setReferralCode("")
     } else {
@@ -262,11 +206,89 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         side="right"
         className="flex w-[380px] flex-col border-l border-[#e2e8f0] bg-white p-0 sm:w-[380px]"
       >
+        {/* ─── Run State Banner ─────────────────────────── */}
+        <AnimatePresence>
+          {runState !== "idle" && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="shrink-0 overflow-hidden"
+            >
+              <div className={cn(
+                "flex items-center justify-between px-5 py-2.5",
+                runState === "running" && "bg-[#ADD8E6]/30",
+                runState === "paused" && "bg-[#FFF44F]/20",
+                runState === "stopped" && "bg-red-50"
+              )}>
+                <div>
+                  <p className="text-[12px] font-semibold text-[#0f172a]">
+                    {runState === "running" && "Applying\u2026"}
+                    {runState === "paused" && "Paused."}
+                    {runState === "stopped" && "Session stopped."}
+                  </p>
+                  {runState === "stopped" && (
+                    <p className="text-[10px] text-[#64748b]">1 credit deducted.</p>
+                  )}
+                </div>
+                {runState !== "stopped" && (
+                  <div className="flex gap-2">
+                    {runState === "running" && (
+                      <>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center gap-1.5 rounded border border-[#e2e8f0] bg-white px-3 text-[11px] font-medium text-[#334155] transition-all hover:border-[#cbd5e1]"
+                          onClick={handlePause}
+                        >
+                          <Pause className="h-3 w-3" strokeWidth={1.5} />
+                          Pause
+                        </button>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center gap-1.5 rounded border border-red-200 bg-white px-3 text-[11px] font-medium text-red-600 transition-all hover:bg-red-50"
+                          onClick={handleStop}
+                        >
+                          <Square className="h-3 w-3" strokeWidth={1.5} />
+                          Stop
+                        </button>
+                      </>
+                    )}
+                    {runState === "paused" && (
+                      <>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center gap-1.5 rounded bg-[#002366] px-3 text-[11px] font-medium text-white transition-all hover:bg-[#001a4d]"
+                          onClick={handleResume}
+                        >
+                          <Play className="h-3 w-3" strokeWidth={1.5} />
+                          Resume
+                        </button>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center gap-1.5 rounded border border-red-200 bg-white px-3 text-[11px] font-medium text-red-600 transition-all hover:bg-red-50"
+                          onClick={handleStop}
+                        >
+                          <Square className="h-3 w-3" strokeWidth={1.5} />
+                          Stop
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* ─── Header ─────────────────────────────────────── */}
         <div className="shrink-0 px-5 pb-0 pt-5">
           <SheetHeader className="space-y-0">
             <div className="flex items-center justify-between">
-              <SheetTitle className="font-sans text-2xl font-bold text-[#002366]">
+              <SheetTitle
+                className="text-2xl font-bold text-[#0f172a]"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
                 Y.EAA
               </SheetTitle>
               {/* Balance pill */}
@@ -275,14 +297,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 className={cn(
                   "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-all",
                   quotaIsZero
-                    ? "border-red-300 bg-red-50 text-red-600"
-                    : "border-[#e2e8f0] bg-[#f8fafc] text-[#334155] hover:border-[#cbd5e1]"
+                    ? "border-transparent bg-red-500 text-white"
+                    : "border-[#e2e8f0] bg-transparent text-[#334155] hover:border-[#cbd5e1]"
                 )}
                 onClick={() => setDrawerOpen(!drawerOpen)}
               >
                 <span>Balance:</span>
                 <span className="font-mono font-semibold">{quota}</span>
-                <span>Applications</span>
                 <Plus className="ml-0.5 h-3 w-3" strokeWidth={2} />
               </button>
             </div>
@@ -292,193 +313,229 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {/* ─── Quota Progress Bar (2px) ──────────────────── */}
         <div className="mt-3 h-[2px] w-full bg-[#e2e8f0]">
           <motion.div
-            className={cn(
-              "h-full",
-              quotaIsZero ? "bg-red-500" : "bg-[#002366]"
-            )}
+            className={cn("h-full", quotaIsZero ? "bg-red-500" : "bg-[#ADD8E6]")}
             initial={false}
-            animate={{ width: `${Math.min((quota / 10) * 100, 100)}%` }}
+            animate={{ width: `${Math.min((quota / 15) * 100, 100)}%` }}
             transition={{ duration: 0.4, ease: "easeOut" }}
           />
+        </div>
+
+        {/* ─── Section 0: Quick Link Entry ───────────────── */}
+        <div className="shrink-0 border-b border-[#e2e8f0] px-5 py-4">
+          <p className="text-[11px] font-medium text-[#334155]">Paste Job Link</p>
+          <Input
+            type="url"
+            value={jobLink}
+            onChange={(e) => setJobLink(e.target.value)}
+            placeholder="https://www.linkedin.com/jobs/view/..."
+            className="mt-2 h-9 rounded border-[#e2e8f0] bg-transparent text-sm placeholder:text-[#94a3b8]"
+          />
+          <p className="mt-1.5 text-[10px] leading-relaxed text-[#94a3b8]">
+            If the job is already open, Y.EAA will activate that tab. Otherwise, a new tab will be opened.
+          </p>
         </div>
 
         {/* ─── Accordion Steps ───────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
 
-          {/* ─── Step 1: SETUP & IDENTITY ───────────────── */}
+          {/* ─── Step 1: Upload Resume ─────────────────── */}
           <AccordionStep
             number={1}
-            title="Setup & Identity"
+            title="Upload Resume"
             status={steps.step1}
-            statusLabel={steps.step1 === "completed" ? "Complete" : steps.step1 === "in-progress" ? "Incomplete" : ""}
             isActive={activeStep === 1}
             onToggle={() => {
-              if (activeStep === 1) return
-              if (steps.step1 === "completed") handleReopenStep1()
+              if (steps.step1 !== "not-started") setActiveStep(1)
             }}
-            canToggle={steps.step1 === "completed" || steps.step1 === "in-progress"}
+            canToggle={steps.step1 !== "not-started"}
           >
-            {/* Upload your resume (opens modal) */}
-            <div className="space-y-3">
-              <p className="text-[11px] font-medium text-[#64748b]">Upload your resume</p>
-              {sources.length > 0 && (
-                <div className="space-y-1.5">
-                  {sources.map((src, i) => (
-                    <div
-                      key={`src-${i}`}
-                      className="flex items-center gap-2 rounded border border-[#16a34a]/30 bg-[#16a34a]/5 px-3 py-2"
-                    >
-                      <FileText className="h-3.5 w-3.5 shrink-0 text-[#16a34a]" strokeWidth={1.5} />
-                      <span className="flex-1 truncate text-[11px] text-[#0a0a0a]">{src.name}</span>
-                      <span className="shrink-0 text-[9px] uppercase text-[#64748b]">{src.type}</span>
-                    </div>
-                  ))}
+            {/* Parsing state */}
+            {parsingStatus === "parsing" && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#ADD8E6]" strokeWidth={2} />
+                  <p className="text-[12px] text-[#334155]">Parsing resume&hellip;</p>
                 </div>
-              )}
-              <button
-                type="button"
-                className="flex w-full items-center justify-center gap-2 rounded border border-dashed border-[#cbd5e1] px-3 py-4 text-[12px] font-medium text-[#64748b] transition-all hover:border-[#002366]/40 hover:bg-[#002366]/[0.02] hover:text-[#002366]"
-                onClick={() => {
-                  setResumeModalOpen(true)
-                  setResumeModalMode("choose")
-                }}
-              >
-                <Upload className="h-4 w-4" strokeWidth={1.5} />
-                {sources.length > 0 ? "Add more" : "Click to upload"}
-              </button>
-            </div>
-
-            {/* Gemini API Key */}
-            <div className="mt-5 space-y-2">
-              <p className="text-[11px] font-medium text-[#64748b]">Gemini API Key</p>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-[#94a3b8]" strokeWidth={1.5} />
-                  <Input
-                    type="password"
-                    value={apiKey}
-                    onChange={(e) => {
-                      setApiKey(e.target.value)
-                      if (keyStatus !== "idle") setKeyStatus("idle")
-                    }}
-                    placeholder="sk-..."
-                    className={cn(
-                      "h-9 rounded border bg-transparent pl-9 text-sm placeholder:text-[#94a3b8]",
-                      keyStatus === "valid"
-                        ? "border-[#16a34a] focus:border-[#16a34a]"
-                        : keyStatus === "invalid"
-                        ? "border-red-400 focus:border-red-400"
-                        : "border-[#e2e8f0]"
-                    )}
+                {/* Shimmer bar */}
+                <div className="h-1 w-full overflow-hidden rounded-full bg-[#e2e8f0]">
+                  <motion.div
+                    className="h-full w-1/3 rounded-full bg-[#ADD8E6]"
+                    animate={{ x: ["0%", "200%", "0%"] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
                   />
                 </div>
-                {/* Ghost button for validate */}
+              </div>
+            )}
+
+            {parsingStatus === "done" && resumeName && (
+              <div className="flex items-center gap-2 rounded border border-[#16a34a]/30 bg-[#16a34a]/5 px-3 py-2.5">
+                <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
+                <p className="text-[12px] text-[#16a34a]">Resume parsed successfully.</p>
+              </div>
+            )}
+
+            {parsingStatus === "idle" && (
+              <>
+                {resumeName && (
+                  <div className="mb-3 flex items-center gap-2 rounded border border-[#16a34a]/30 bg-[#16a34a]/5 px-3 py-2">
+                    <FileText className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={1.5} />
+                    <span className="flex-1 truncate text-[11px] text-[#0f172a]">{resumeName}</span>
+                  </div>
+                )}
                 <button
                   type="button"
-                  className={cn(
-                    "flex h-9 shrink-0 items-center justify-center rounded border px-4 text-[11px] font-medium transition-all",
-                    keyStatus === "valid"
-                      ? "border-[#16a34a] text-[#16a34a]"
-                      : "border-[#e2e8f0] text-[#64748b] hover:border-[#002366]/40 hover:text-[#002366] hover:shadow-[0_0_0_1px_rgba(0,35,102,0.08)]"
-                  )}
-                  onClick={handleValidateKey}
-                  disabled={!apiKey.trim() || keyStatus === "checking"}
+                  className="flex w-full items-center justify-center gap-2 rounded border border-dashed border-[#cbd5e1] px-3 py-4 text-[12px] font-medium text-[#64748b] transition-all hover:border-[#ADD8E6] hover:bg-[#ADD8E6]/5 hover:text-[#334155]"
+                  onClick={() => {
+                    setResumeModalOpen(true)
+                    setResumeModalMode("choose")
+                    setSteps((prev) => prev.step1 === "not-started" ? { ...prev, step1: "in-progress" } : prev)
+                  }}
                 >
-                  {keyStatus === "checking" ? (
-                    <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
-                  ) : keyStatus === "valid" ? (
-                    <Check className="h-3.5 w-3.5" strokeWidth={2} />
-                  ) : (
-                    "Validate"
-                  )}
+                  <Upload className="h-4 w-4" strokeWidth={1.5} />
+                  {resumeName ? "Replace resume" : "Click to upload"}
                 </button>
+              </>
+            )}
+          </AccordionStep>
+
+          {/* ─── Step 2: Create Job Profile ────────────── */}
+          <AccordionStep
+            number={2}
+            title="Create Job Profile"
+            status={steps.step2}
+            isActive={activeStep === 2}
+            onToggle={() => {
+              if (steps.step2 === "in-progress" || steps.step2 === "completed") setActiveStep(2)
+            }}
+            canToggle={steps.step2 === "in-progress" || steps.step2 === "completed"}
+          >
+            {profileLocked && (
+              <div className="mb-4 flex items-center gap-2 rounded border border-[#FFF44F]/40 bg-[#FFF44F]/10 px-3 py-2">
+                <Lock className="h-3 w-3 text-[#a16207]" strokeWidth={1.5} />
+                <p className="text-[10px] text-[#a16207]">Locked after first run (MVP limitation)</p>
               </div>
-              {keyStatus === "checking" && (
-                <p className="text-[10px] text-[#94a3b8]">{"Validating connection\u2026"}</p>
-              )}
-              {keyStatus === "valid" && (
-                <p className="text-[10px] text-[#16a34a]">Key verified</p>
-              )}
-              {keyStatus === "invalid" && (
-                <p className="text-[10px] text-red-500">Invalid key. Please check and try again.</p>
+            )}
+
+            {/* Metadata Grid */}
+            <div className="space-y-4">
+              <p className="text-[10px] font-semibold uppercase text-[#94a3b8]">Preferences</p>
+              <div className="grid grid-cols-2 gap-3">
+                {/* Location / Remote */}
+                <GhostToggle
+                  icon={<MapPin className="h-3.5 w-3.5" strokeWidth={1.5} />}
+                  label="Remote"
+                  active={locationRemote}
+                  onToggle={() => !profileLocked && setLocationRemote(!locationRemote)}
+                  disabled={profileLocked}
+                />
+                {/* Seniority */}
+                <GhostToggle
+                  icon={<Briefcase className="h-3.5 w-3.5" strokeWidth={1.5} />}
+                  label="Senior"
+                  active={seniority === "senior"}
+                  onToggle={() => !profileLocked && setSeniority(seniority === "senior" ? "mid" : "senior")}
+                  disabled={profileLocked}
+                />
+                {/* Job Type */}
+                <GhostToggle
+                  icon={<Briefcase className="h-3.5 w-3.5" strokeWidth={1.5} />}
+                  label="Full-time"
+                  active={jobType === "full-time"}
+                  onToggle={() => !profileLocked && setJobType(jobType === "full-time" ? "contract" : "full-time")}
+                  disabled={profileLocked}
+                />
+              </div>
+
+              {/* Work Authorization */}
+              <div className="mt-2 border-t border-[#e2e8f0] pt-4">
+                <p className="text-[10px] font-semibold uppercase text-[#94a3b8]">Work Authorization</p>
+
+                <div className="mt-3 space-y-3">
+                  <div>
+                    <p className="text-[11px] text-[#334155]">Detected Countries</p>
+                    <div className="mt-1.5 flex gap-2">
+                      <span className="rounded border border-[#e2e8f0] bg-[#f8fafc] px-2.5 py-1 text-[11px] font-medium text-[#334155]">Japan</span>
+                      <span className="rounded border border-[#e2e8f0] bg-[#f8fafc] px-2.5 py-1 text-[11px] font-medium text-[#334155]">USA</span>
+                    </div>
+                    <p className="mt-1 text-[9px] text-[#94a3b8]">Detected from resume history.</p>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-3.5 w-3.5 text-[#64748b]" strokeWidth={1.5} />
+                      <span className="text-[11px] text-[#334155]">Sponsorship</span>
+                    </div>
+                    <MiniToggle active={sponsorship} onToggle={() => !profileLocked && setSponsorship(!sponsorship)} disabled={profileLocked} />
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-[#334155]">EEO: Prefer not to say</span>
+                    <MiniToggle active={eeoOptOut} onToggle={() => !profileLocked && setEeoOptOut(!eeoOptOut)} disabled={profileLocked} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Confirm / Save profile */}
+              {!profileLocked && steps.step2 === "in-progress" && (
+                <button
+                  type="button"
+                  className="mt-2 flex h-10 w-full items-center justify-center rounded bg-[#002366] text-[12px] font-semibold text-white transition-all hover:bg-[#001a4d]"
+                  onClick={handleStartRun}
+                >
+                  Save profile & continue
+                </button>
               )}
             </div>
           </AccordionStep>
 
-          {/* ─── Step 2: INTENT & ANALYSIS ──────────────── */}
+          {/* ─── Step 3: Search Results Controller ──────── */}
           <AccordionStep
-            number={2}
-            title="Intent & Analysis"
-            status={steps.step2}
-            statusLabel={steps.step2 === "completed" ? "Complete" : steps.step2 === "in-progress" ? "Analyzing" : ""}
-            isActive={activeStep === 2}
+            number={3}
+            title="Search Results Controller"
+            status={steps.step3}
+            isActive={activeStep === 3}
             onToggle={() => {
-              if (steps.step2 === "completed" || steps.step2 === "in-progress") {
-                setActiveStep(2)
-              }
+              if (steps.step3 === "in-progress" || steps.step3 === "completed") setActiveStep(3)
             }}
-            canToggle={steps.step2 === "completed" || steps.step2 === "in-progress"}
+            canToggle={steps.step3 === "in-progress" || steps.step3 === "completed"}
           >
-            {/* Terminal / Comment feed */}
-            {currentMessage && (
-              <div className="mb-4 rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2.5">
-                <AnimatePresence mode="wait">
-                  <motion.p
-                    key={currentMessage}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="font-mono text-[10px] text-[#64748b]"
-                  >
-                    <span className="mr-1.5 text-[#002366]">{'>'}</span>
-                    {currentMessage}
-                    {!analysisComplete && (
-                      <span className="ml-1.5 inline-block h-1 w-1 animate-pulse rounded-full bg-[#002366]" />
-                    )}
-                  </motion.p>
-                </AnimatePresence>
-              </div>
-            )}
-
-            {/* "Apply Now" label above positions */}
-            {roles.length > 0 && (
-              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Apply Now
-              </p>
-            )}
-
-            {/* Positions as Ghost Buttons (direct action: click = redirect) */}
-            {roles.length > 0 && (
-              <div className="space-y-2">
-                {roles.map((role) => (
-                  <motion.button
-                    key={role.title}
-                    type="button"
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="group flex w-full items-center justify-between rounded border border-[#e2e8f0] bg-transparent px-4 py-3.5 text-left transition-all hover:border-[#002366]/40 hover:shadow-[0_0_8px_rgba(0,35,102,0.06)]"
-                    onClick={() => handleRoleClick(role.title)}
-                  >
-                    <span className="text-sm font-medium text-[#0f172a] transition-colors group-hover:text-[#002366]">
-                      {role.title}
-                    </span>
-                    <ChevronRight className="h-3.5 w-3.5 text-[#cbd5e1] transition-all group-hover:translate-x-0.5 group-hover:text-[#002366]" strokeWidth={1.5} />
-                  </motion.button>
-                ))}
-              </div>
-            )}
-
-            {/* Invalidated notice */}
-            {steps.step2 === "invalidated" && (
-              <div className="mt-3 flex items-center gap-2 rounded border border-[#ca8a04]/20 bg-[#ca8a04]/5 px-3 py-2">
-                <AlertCircle className="h-3 w-3 shrink-0 text-[#ca8a04]" strokeWidth={1.5} />
-                <p className="text-[10px] text-[#ca8a04]">
-                  Setup was modified. Re-upload to continue.
+            {/* Warning if > 10 positions */}
+            {detectedPositions > 10 && runState === "idle" && (
+              <div className="mb-4 rounded border border-[#FFF44F]/40 bg-[#FFF44F]/10 px-3 py-2.5">
+                <p className="text-[11px] text-[#a16207]">
+                  More than 10 positions detected. We recommend starting with 10.
                 </p>
               </div>
             )}
+
+            <div className="space-y-3">
+              {/* Apply All */}
+              <button
+                type="button"
+                className={cn(
+                  "flex h-11 w-full items-center justify-center rounded text-[13px] font-semibold transition-all",
+                  runState === "idle"
+                    ? "bg-[#002366] text-white hover:bg-[#001a4d]"
+                    : "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
+                )}
+                onClick={runState === "idle" ? handleApplyAll : undefined}
+                disabled={runState !== "idle"}
+              >
+                Apply All
+              </button>
+
+              {/* Recommend (Disabled) */}
+              <button
+                type="button"
+                className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded border border-[#e2e8f0] text-[13px] font-medium text-[#94a3b8]"
+                disabled
+              >
+                Recommend
+              </button>
+              <p className="text-center text-[10px] text-[#94a3b8]">
+                AI-recommended applications coming soon.
+              </p>
+            </div>
           </AccordionStep>
         </div>
 
@@ -488,88 +545,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             Y.EAA does not store credentials, cookies, or login sessions.
           </p>
         </div>
-
-        {/* ─── Authorization Overlay (Step 3) ────────────── */}
-        <AnimatePresence>
-          {showAuthOverlay && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
-            >
-              <div className="w-full max-w-[320px] px-6">
-                <h3 className="text-lg font-semibold text-[#0f172a]">Before you continue</h3>
-                <div className="mt-4 space-y-3">
-                  <p className="text-[12px] leading-relaxed text-[#64748b]">
-                    Y.EAA will open LinkedIn Easy Apply for the selected position. The system:
-                  </p>
-                  <ul className="space-y-1.5">
-                    {[
-                      "Operates only within your current browser tab",
-                      "Does not auto-submit any applications",
-                      "Does not store your LinkedIn credentials",
-                      "Will pre-fill form fields using your resume data",
-                    ].map((item) => (
-                      <li key={item} className="flex items-start gap-2">
-                        <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-[#64748b]" />
-                        <span className="text-[11px] leading-relaxed text-[#64748b]">{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {pendingRole && (
-                  <div className="mt-4 rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
-                    <span className="text-[10px] text-[#94a3b8]">Target position:</span>
-                    <p className="text-[12px] font-medium text-[#0f172a]">{pendingRole}</p>
-                  </div>
-                )}
-
-                <button
-                  type="button"
-                  className="mt-5 flex items-center gap-2"
-                  onClick={() => setAuthChecked(!authChecked)}
-                >
-                  {authChecked ? (
-                    <CheckSquare className="h-4 w-4 text-[#002366]" strokeWidth={1.5} />
-                  ) : (
-                    <Square className="h-4 w-4 text-[#cbd5e1]" strokeWidth={1.5} />
-                  )}
-                  <span className="text-[12px] text-[#334155]">I understand</span>
-                </button>
-
-                <div className="mt-5 flex gap-2">
-                  <button
-                    type="button"
-                    className="flex h-10 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[12px] font-medium text-[#64748b] transition-all hover:border-[#cbd5e1] hover:text-[#334155]"
-                    onClick={() => {
-                      setShowAuthOverlay(false)
-                      setPendingRole(null)
-                      setAuthChecked(false)
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex h-10 flex-1 items-center justify-center rounded text-[12px] font-semibold transition-all",
-                      authChecked
-                        ? "bg-[#002366] text-white hover:bg-[#001a4d] hover:shadow-[0_0_12px_rgba(0,35,102,0.15)]"
-                        : "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
-                    )}
-                    onClick={authChecked ? handleAuthorize : undefined}
-                    disabled={!authChecked}
-                  >
-                    Proceed
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         {/* ─── Resume Upload Modal Overlay ────────────────── */}
         <AnimatePresence>
@@ -583,7 +558,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             >
               <div className="w-full max-w-[320px] px-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-[#0f172a]">Add source material</h3>
+                  <h3 className="text-lg font-semibold text-[#0f172a]">Upload Resume</h3>
                   <button
                     type="button"
                     className="flex h-6 w-6 items-center justify-center text-[#94a3b8] hover:text-[#0f172a]"
@@ -602,10 +577,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     {/* Upload PDF tile */}
                     <button
                       type="button"
-                      className="group flex w-full items-center gap-4 rounded border border-[#e2e8f0] bg-transparent px-5 py-5 text-left transition-all hover:border-[#002366]/40 hover:shadow-[0_0_8px_rgba(0,35,102,0.06)]"
+                      className="group flex w-full items-center gap-4 rounded border border-[#e2e8f0] bg-transparent px-5 py-5 text-left transition-all hover:border-[#ADD8E6] hover:bg-[#ADD8E6]/5"
                       onClick={handleUploadPDF}
                     >
-                      <Upload className="h-5 w-5 text-[#94a3b8] transition-colors group-hover:text-[#002366]" strokeWidth={1.5} />
+                      <Upload className="h-5 w-5 text-[#94a3b8] transition-colors group-hover:text-[#ADD8E6]" strokeWidth={1.5} />
                       <div>
                         <p className="text-sm font-medium text-[#0f172a]">Upload PDF</p>
                         <p className="mt-0.5 text-[10px] text-[#94a3b8]">PDF, DOC, or DOCX</p>
@@ -615,14 +590,22 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     {/* Paste Text tile */}
                     <button
                       type="button"
-                      className="group flex w-full items-center gap-4 rounded border border-[#e2e8f0] bg-transparent px-5 py-5 text-left transition-all hover:border-[#002366]/40 hover:shadow-[0_0_8px_rgba(0,35,102,0.06)]"
+                      className="group flex w-full items-center gap-4 rounded border border-[#e2e8f0] bg-transparent px-5 py-5 text-left transition-all hover:border-[#ADD8E6] hover:bg-[#ADD8E6]/5"
                       onClick={() => setResumeModalMode("paste")}
                     >
-                      <ClipboardPaste className="h-5 w-5 text-[#94a3b8] transition-colors group-hover:text-[#002366]" strokeWidth={1.5} />
+                      <ClipboardPaste className="h-5 w-5 text-[#94a3b8] transition-colors group-hover:text-[#ADD8E6]" strokeWidth={1.5} />
                       <div>
                         <p className="text-sm font-medium text-[#0f172a]">Paste Text</p>
                         <p className="mt-0.5 text-[10px] text-[#94a3b8]">Plain text resume content</p>
                       </div>
+                    </button>
+
+                    {/* Connect with LinkedIn */}
+                    <button
+                      type="button"
+                      className="mt-2 flex w-full items-center justify-center gap-2 rounded border border-[#e2e8f0] py-3 text-[11px] font-medium text-[#64748b] transition-all hover:border-[#cbd5e1] hover:text-[#334155]"
+                    >
+                      Connect with LinkedIn
                     </button>
                   </div>
                 )}
@@ -633,7 +616,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       value={pasteText}
                       onChange={(e) => setPasteText(e.target.value)}
                       placeholder="Paste your resume text here"
-                      className="min-h-[160px] resize-none rounded border-[#e2e8f0] bg-transparent text-sm leading-relaxed placeholder:text-[#94a3b8] focus:border-[#002366]"
+                      className="min-h-[160px] resize-none rounded border-[#e2e8f0] bg-transparent text-sm leading-relaxed placeholder:text-[#94a3b8] focus:border-[#ADD8E6]"
                       autoFocus
                     />
                     <div className="flex gap-2">
@@ -655,7 +638,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                         onClick={handlePasteSubmit}
                         disabled={!pasteText.trim()}
                       >
-                        Add source
+                        Upload
                       </button>
                     </div>
                   </div>
@@ -665,11 +648,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           )}
         </AnimatePresence>
 
-        {/* ─── Bottom Drawer: Referral Code ──────────────── */}
+        {/* ─── Bottom Drawer ──────────────────────────────── */}
         <AnimatePresence>
           {drawerOpen && (
             <>
-              {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -677,7 +659,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 className="absolute inset-0 z-40 bg-black/10"
                 onClick={() => setDrawerOpen(false)}
               />
-              {/* Drawer */}
               <motion.div
                 initial={{ y: "100%" }}
                 animate={{ y: 0 }}
@@ -686,45 +667,68 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 className="absolute inset-x-0 bottom-0 z-50 rounded-t-xl border-t border-[#e2e8f0] bg-white"
               >
                 <div className="px-5 pb-6 pt-4">
-                  {/* Drag handle */}
                   <div className="mx-auto mb-4 h-1 w-8 rounded-full bg-[#e2e8f0]" />
-                  <p className="text-[12px] font-semibold text-[#0f172a]">Referral Code</p>
-                  <p className="mt-1 text-[10px] text-[#94a3b8]">
-                    Adds applications to your remaining balance.
-                  </p>
-                  <div className="mt-3 flex gap-2">
-                    <Input
-                      type="text"
-                      value={referralCode}
-                      onChange={(e) => setReferralCode(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !referralLoading) handleApplyReferral()
-                      }}
-                      placeholder="Enter referral code"
-                      disabled={referralLoading}
-                      className="h-10 flex-1 rounded border-[#e2e8f0] bg-transparent text-sm placeholder:text-[#94a3b8]"
-                    />
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex h-10 shrink-0 items-center justify-center rounded px-5 text-[12px] font-semibold transition-all",
-                        referralCode.trim() && !referralLoading
-                          ? "bg-[#002366] text-white hover:bg-[#001a4d]"
-                          : "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
-                      )}
-                      onClick={handleApplyReferral}
-                      disabled={referralLoading || referralCode.trim().length === 0}
-                    >
-                      {referralLoading ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={1.5} />
-                      ) : (
-                        "Redeem"
-                      )}
-                    </button>
+
+                  {/* Toggle: Use own Gemini API Key */}
+                  <div className="flex items-center justify-between">
+                    <p className="text-[12px] font-medium text-[#334155]">Use my own Gemini API Key</p>
+                    <MiniToggle active={useOwnKey} onToggle={() => setUseOwnKey(!useOwnKey)} />
                   </div>
-                  {referralError && (
-                    <p className="mt-2 text-[10px] text-red-500">{referralError}</p>
+                  {useOwnKey && (
+                    <div className="mt-2">
+                      <div className="relative">
+                        <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-[#94a3b8]" strokeWidth={1.5} />
+                        <Input
+                          type="password"
+                          value={apiKey}
+                          onChange={(e) => setApiKey(e.target.value)}
+                          placeholder="AIza..."
+                          className="h-9 rounded border-[#e2e8f0] bg-transparent pl-8 text-sm placeholder:text-[#94a3b8]"
+                        />
+                      </div>
+                    </div>
                   )}
+
+                  {/* Referral code */}
+                  <div className="mt-4 border-t border-[#e2e8f0] pt-4">
+                    <p className="text-[12px] font-medium text-[#334155]">Enter Referral Code</p>
+                    <p className="mt-0.5 text-[10px] text-[#94a3b8]">
+                      Refills to 5 daily (Max stockpile: 15)
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <Input
+                        type="text"
+                        value={referralCode}
+                        onChange={(e) => setReferralCode(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !referralLoading) handleApplyReferral()
+                        }}
+                        placeholder="Enter referral code"
+                        disabled={referralLoading}
+                        className="h-9 flex-1 rounded border-[#e2e8f0] bg-transparent text-sm placeholder:text-[#94a3b8]"
+                      />
+                      <button
+                        type="button"
+                        className={cn(
+                          "flex h-9 shrink-0 items-center justify-center rounded px-4 text-[11px] font-semibold transition-all",
+                          referralCode.trim() && !referralLoading
+                            ? "bg-[#002366] text-white hover:bg-[#001a4d]"
+                            : "cursor-not-allowed bg-[#e2e8f0] text-[#94a3b8]"
+                        )}
+                        onClick={handleApplyReferral}
+                        disabled={referralLoading || !referralCode.trim()}
+                      >
+                        {referralLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
+                        ) : (
+                          "Redeem"
+                        )}
+                      </button>
+                    </div>
+                    {referralError && (
+                      <p className="mt-1.5 text-[10px] text-red-500">{referralError}</p>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             </>
@@ -735,13 +739,77 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   )
 }
 
+/* ─── Ghost Toggle Button ─────────────────────────────── */
+
+function GhostToggle({
+  icon,
+  label,
+  active,
+  onToggle,
+  disabled,
+}: {
+  icon: React.ReactNode
+  label: string
+  active: boolean
+  onToggle: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "flex items-center gap-2 rounded border px-3 py-2.5 text-[11px] font-medium transition-all",
+        active
+          ? "border-[#ADD8E6] bg-[#ADD8E6]/10 text-[#334155]"
+          : "border-[#e2e8f0] bg-transparent text-[#94a3b8]",
+        disabled ? "cursor-not-allowed opacity-50" : "hover:border-[#ADD8E6]"
+      )}
+      onClick={onToggle}
+      disabled={disabled}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+/* ─── Mini Toggle Switch ──────────────────────────────── */
+
+function MiniToggle({
+  active,
+  onToggle,
+  disabled,
+}: {
+  active: boolean
+  onToggle: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      className={cn(
+        "relative h-5 w-9 rounded-full transition-colors",
+        active ? "bg-[#ADD8E6]" : "bg-[#e2e8f0]",
+        disabled && "cursor-not-allowed opacity-50"
+      )}
+      onClick={onToggle}
+      disabled={disabled}
+    >
+      <motion.div
+        className="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm"
+        animate={{ x: active ? 16 : 0 }}
+        transition={{ duration: 0.15 }}
+      />
+    </button>
+  )
+}
+
 /* ─── Accordion Step Component ────────────────────────── */
 
 function AccordionStep({
   number,
   title,
   status,
-  statusLabel,
   isActive,
   onToggle,
   canToggle,
@@ -750,7 +818,6 @@ function AccordionStep({
   number: number
   title: string
   status: StepStatus
-  statusLabel?: string
   isActive: boolean
   onToggle: () => void
   canToggle: boolean
@@ -771,18 +838,10 @@ function AccordionStep({
       >
         <span className={cn("font-mono text-[10px] font-bold", STATUS_TEXT[status])}>{number}</span>
         <span className={cn("text-[13px] font-semibold", STATUS_TEXT[status])}>{title}</span>
-        {statusLabel && (
-          <span className={cn("ml-auto text-[10px] font-medium opacity-70", STATUS_TEXT[status])}>
-            {statusLabel}
-          </span>
-        )}
         {status === "completed" && (
-          <Check className={cn("h-3.5 w-3.5", statusLabel ? "ml-1.5" : "ml-auto", "text-white")} strokeWidth={2} />
+          <Check className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={2} />
         )}
-        {status === "invalidated" && (
-          <AlertCircle className="ml-auto h-3.5 w-3.5 text-white" strokeWidth={1.5} />
-        )}
-        {status === "in-progress" && !statusLabel && (
+        {status === "in-progress" && (
           <ChevronRight className={cn("ml-auto h-3.5 w-3.5 transition-transform", isActive && "rotate-90", STATUS_TEXT[status])} strokeWidth={1.5} />
         )}
       </button>
