@@ -25,12 +25,12 @@ import {
   Square,
   Play,
   Lock,
-  MapPin,
-  Briefcase,
   Shield,
   Link,
   Pencil,
   RotateCcw,
+  Zap,
+  Linkedin,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -53,7 +53,6 @@ interface ExtensionPopupProps {
 }
 
 /* ─── Status Color Map ────────────────────────────────── */
-/* Left border colors: muted yellow = not started, blue = active, green = completed */
 
 const BORDER_COLOR: Record<StepStatus, string> = {
   "not-started": "border-l-[#d4a017]/40",
@@ -68,13 +67,13 @@ const TITLE_COLOR: Record<StepStatus, string> = {
 }
 
 const STATUS_LABEL: Record<StepStatus, string> = {
-  "not-started": "Not started",
+  "not-started": "(Not Start)",
   "in-progress": "In progress",
   completed: "Completed",
 }
 
 const STATUS_LABEL_COLOR: Record<StepStatus, string> = {
-  "not-started": "text-[#94a3b8]",
+  "not-started": "text-[#d4a017]",
   "in-progress": "text-[#3b82f6]",
   completed: "text-[#16a34a]",
 }
@@ -98,20 +97,33 @@ const AI_PROFILES = [
   {
     id: "ai-1",
     role: "Senior Frontend Engineer",
-    location: "Remote (US)",
+    location: ["Remote"],
     seniority: "Senior",
     type: "Full-time",
     summary: "React/TypeScript roles at growth-stage startups",
+    dotColor: "bg-[#16a34a]", // green = ready
   },
   {
     id: "ai-2",
     role: "Staff Software Engineer",
-    location: "San Francisco, CA",
+    location: ["On-Site"],
     seniority: "Staff",
     type: "Full-time",
-    summary: "Platform & infrastructure engineering at mid-to-large companies",
+    summary: "Platform & infrastructure at mid-to-large companies",
+    dotColor: "bg-[#3b82f6]", // blue = analyzing
   },
 ]
+
+/* ─── 2x2 Matrix Types ───────────────────────────────── */
+
+type MatrixValue = "yes" | "no"
+
+interface MatrixState {
+  [country: string]: {
+    workAuth: MatrixValue
+    sponsorship: MatrixValue
+  }
+}
 
 /* ─── Main Component ──────────────────────────────────── */
 
@@ -121,8 +133,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const balanceRef = useRef<HTMLButtonElement>(null)
 
-  const [useOwnKey, setUseOwnKey] = useState(false)
-  const [apiKey, setApiKey] = useState("")
+  const [apiKey, setApiKey] = useState("sk-...hidden")
+  const [apiKeyEditing, setApiKeyEditing] = useState(false)
   const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1)
   const [steps, setSteps] = useState<StepState>({
     step1: "not-started",
@@ -137,29 +149,41 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [resumeModalOpen, setResumeModalOpen] = useState(false)
   const [resumeModalMode, setResumeModalMode] = useState<"choose" | "paste" | null>(null)
   const [pasteText, setPasteText] = useState("")
-  const [parsingStatus, setParsingStatus] = useState<"idle" | "parsing" | "done">("idle")
+  const [parsingStatus, setParsingStatus] = useState<"idle" | "parsing" | "done" | "syncing">("idle")
   const [resumeName, setResumeName] = useState<string | null>(null)
 
-  // Step 2: Create Job Profile
+  // Step 2: Job Profile
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
-  const [customProfileOpen, setCustomProfileOpen] = useState(false)
-  const [customUrl, setCustomUrl] = useState("")
-  const [customTitle, setCustomTitle] = useState("")
-  const [customLocation, setCustomLocation] = useState("")
-  const [customSeniority, setCustomSeniority] = useState("")
-  const [customType, setCustomType] = useState("")
+  const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
+  const [userProfile, setUserProfile] = useState({
+    role: "",
+    location: [] as string[],
+    seniority: "",
+    type: "",
+  })
   const [profileLocked, setProfileLocked] = useState(false)
-  const [prefsEditing, setPrefsEditing] = useState(false)
-  const [locationRemote, setLocationRemote] = useState(true)
-  const [seniority, setSeniority] = useState("senior")
-  const [jobType, setJobType] = useState("full-time")
-  const [sponsorship, setSponsorship] = useState(true)
+
+  // Location chips
+  const LOCATION_OPTIONS = ["Remote", "On-Site", "Hybrid"]
+
+  // 2x2 Matrix
+  const [matrixCountries, setMatrixCountries] = useState<string[]>(["USA", "Japan"])
+  const [matrix, setMatrix] = useState<MatrixState>({
+    USA: { workAuth: "yes", sponsorship: "yes" },
+    Japan: { workAuth: "yes", sponsorship: "yes" },
+  })
+  const [addingCountry, setAddingCountry] = useState(false)
+  const [newCountryName, setNewCountryName] = useState("")
+
+  // EEO
   const [eeoOptOut, setEeoOptOut] = useState(true)
+  const [eeoExpanded, setEeoExpanded] = useState(false)
 
   // Step 3: Search Results Controller
   const [detectedPositions] = useState(14)
   const [runState, setRunState] = useState<RunState>("idle")
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
+  const [confirmAcknowledged, setConfirmAcknowledged] = useState(false)
 
   // Referral
   const [referralCode, setReferralCode] = useState("")
@@ -229,18 +253,63 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     }
   }, [pasteText, simulateParsing])
 
-  /* ─── Step 2: Profile selection & lock ─────────────── */
+  const handleConnectLinkedIn = useCallback(() => {
+    setParsingStatus("syncing")
+    setSteps((prev) => ({ ...prev, step1: "in-progress" }))
+    setTimeout(() => {
+      setResumeName("LinkedIn Profile (synced)")
+      setParsingStatus("done")
+      setSteps((prev) => ({
+        ...prev,
+        step1: "completed",
+        step2: prev.step2 === "not-started" ? "in-progress" : prev.step2,
+      }))
+      setTimeout(() => setActiveStep(2), 400)
+    }, 3000)
+  }, [])
+
+  /* ─── Step 2: Matrix toggle ─────────────────────────── */
+
+  const toggleMatrixCell = useCallback(
+    (country: string, row: "workAuth" | "sponsorship") => {
+      if (profileLocked) return
+      setMatrix((prev) => ({
+        ...prev,
+        [country]: {
+          ...prev[country],
+          [row]: prev[country][row] === "yes" ? "no" : "yes",
+        },
+      }))
+    },
+    [profileLocked]
+  )
+
+  const addCountryToMatrix = useCallback(() => {
+    const name = newCountryName.trim()
+    if (!name || matrixCountries.includes(name)) return
+    setMatrixCountries((prev) => [...prev, name])
+    setMatrix((prev) => ({
+      ...prev,
+      [name]: { workAuth: "yes", sponsorship: "yes" },
+    }))
+    setNewCountryName("")
+    setAddingCountry(false)
+  }, [newCountryName, matrixCountries])
+
+  /* ─── Step 2: Profile save & lock ────────────────────── */
 
   const handleSaveProfile = useCallback(() => {
-    if (!selectedProfile && !customUrl.trim() && !customTitle.trim()) return
+    if (!selectedProfile && !userProfile.role.trim()) return
     setSteps((prev) => ({ ...prev, step2: "completed", step3: "in-progress" }))
     setActiveStep(3)
-  }, [selectedProfile, customUrl, customTitle])
+  }, [selectedProfile, userProfile.role])
 
   const handleLockAndProceed = useCallback(() => {
+    if (steps.step2 !== "completed") return
     setProfileLocked(true)
     setConfirmModalOpen(true)
-  }, [])
+    setConfirmAcknowledged(false)
+  }, [steps.step2])
 
   /* ─── Step 3: Run State ─────────────────────────────── */
 
@@ -250,17 +319,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   }, [])
 
   const handleApplyAll = useCallback(() => {
-    if (steps.step2 !== "completed") return
     handleLockAndProceed()
-  }, [steps.step2, handleLockAndProceed])
+  }, [handleLockAndProceed])
 
-  const handlePause = useCallback(() => {
-    setRunState("paused")
-  }, [])
-
-  const handleResume = useCallback(() => {
-    setRunState("running")
-  }, [])
+  const handlePause = useCallback(() => setRunState("paused"), [])
+  const handleResume = useCallback(() => setRunState("running"), [])
 
   const handleStop = useCallback(() => {
     setRunState("stopped")
@@ -291,18 +354,24 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setReferralLoading(false)
   }, [referralCode, appliedCodes])
 
-  /* ─── Derived ───────────────────────────────────────── */
-  const activeProfile = selectedProfile
-    ? AI_PROFILES.find((p) => p.id === selectedProfile)
-    : customTitle.trim()
-      ? { role: customTitle, location: customLocation || "Not specified", seniority: customSeniority || "Any", type: customType || "Any" }
-      : null
+  /* ─── Location chip toggle ─────────────────────────── */
 
-  const prefsLine = [
-    locationRemote ? "Remote" : "On-site",
-    seniority === "senior" ? "Senior" : "Mid",
-    jobType === "full-time" ? "Full-time" : "Contract",
-  ].join(" \u00B7 ")
+  const toggleLocationChip = useCallback(
+    (profileId: string | null, loc: string) => {
+      if (profileLocked) return
+      if (profileId === null) {
+        // User-created profile
+        setUserProfile((prev) => ({
+          ...prev,
+          location: prev.location.includes(loc)
+            ? prev.location.filter((l) => l !== loc)
+            : [...prev.location, loc],
+        }))
+      }
+      // AI profiles are read-only in this MVP
+    },
+    [profileLocked]
+  )
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -358,52 +427,27 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <div className="flex gap-2">
                   {runState === "running" && (
                     <>
-                      <button
-                        type="button"
-                        className="flex h-6 items-center gap-1 rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] font-medium text-[#334155] transition-all hover:border-[#cbd5e1]"
-                        onClick={handlePause}
-                      >
-                        <Pause className="h-2.5 w-2.5" strokeWidth={1.5} />
-                        Pause
+                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] font-medium text-[#334155] transition-all hover:border-[#cbd5e1]" onClick={handlePause}>
+                        <Pause className="h-2.5 w-2.5" strokeWidth={1.5} /> Pause
                       </button>
-                      <button
-                        type="button"
-                        className="flex h-6 items-center gap-1 rounded border border-red-200 bg-transparent px-2 text-[10px] font-medium text-red-600 transition-all hover:bg-red-50"
-                        onClick={handleStop}
-                      >
-                        <Square className="h-2.5 w-2.5" strokeWidth={1.5} />
-                        Stop
+                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-red-200 bg-transparent px-2 text-[10px] font-medium text-red-600 transition-all hover:bg-red-50" onClick={handleStop}>
+                        <Square className="h-2.5 w-2.5" strokeWidth={1.5} /> Stop
                       </button>
                     </>
                   )}
                   {runState === "paused" && (
                     <>
-                      <button
-                        type="button"
-                        className="flex h-6 items-center gap-1 rounded border border-[#3b82f6]/30 bg-[#3b82f6] px-2 text-[10px] font-medium text-white transition-all hover:bg-[#2563eb]"
-                        onClick={handleResume}
-                      >
-                        <Play className="h-2.5 w-2.5" strokeWidth={1.5} />
-                        Resume
+                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-[#3b82f6]/30 bg-[#3b82f6] px-2 text-[10px] font-medium text-white transition-all hover:bg-[#2563eb]" onClick={handleResume}>
+                        <Play className="h-2.5 w-2.5" strokeWidth={1.5} /> Resume
                       </button>
-                      <button
-                        type="button"
-                        className="flex h-6 items-center gap-1 rounded border border-red-200 bg-transparent px-2 text-[10px] font-medium text-red-600 transition-all hover:bg-red-50"
-                        onClick={handleStop}
-                      >
-                        <Square className="h-2.5 w-2.5" strokeWidth={1.5} />
-                        Stop
+                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-red-200 bg-transparent px-2 text-[10px] font-medium text-red-600 transition-all hover:bg-red-50" onClick={handleStop}>
+                        <Square className="h-2.5 w-2.5" strokeWidth={1.5} /> Stop
                       </button>
                     </>
                   )}
                   {(runState === "stopped" || runState === "completed") && (
-                    <button
-                      type="button"
-                      className="flex h-6 items-center gap-1 rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] font-medium text-[#334155] transition-all hover:border-[#cbd5e1]"
-                      onClick={() => setRunState("idle")}
-                    >
-                      <RotateCcw className="h-2.5 w-2.5" strokeWidth={1.5} />
-                      Reset
+                    <button type="button" className="flex h-6 items-center gap-1 rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] font-medium text-[#334155] transition-all hover:border-[#cbd5e1]" onClick={() => setRunState("idle")}>
+                      <RotateCcw className="h-2.5 w-2.5" strokeWidth={1.5} /> Reset
                     </button>
                   )}
                 </div>
@@ -422,7 +466,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               >
                 Y.EAA
               </SheetTitle>
-              {/* Balance pill - triggers anchored popover */}
+              {/* Balance pill */}
               <button
                 ref={balanceRef}
                 type="button"
@@ -434,11 +478,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 )}
                 onClick={() => setPopoverOpen(!popoverOpen)}
               >
-                <span>Balance:</span>
+                <Zap className="h-3 w-3" strokeWidth={2} />
                 <span className="font-mono font-semibold">{quota}</span>
-                <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-[#cbd5e1] text-[9px] font-bold text-[#64748b]">
-                  +
-                </span>
+                <span>Credits</span>
+                <span className="ml-0.5 text-[#94a3b8]">|</span>
+                <span className="font-bold text-[#64748b]">+</span>
               </button>
             </div>
           </SheetHeader>
@@ -455,38 +499,37 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 className="absolute right-5 top-full z-50 mt-2 w-[300px] rounded border border-[#e2e8f0] bg-white shadow-lg"
               >
                 <div className="p-4">
-                  {/* Section 1: Credits */}
+                  {/* Gemini API Key */}
                   <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94a3b8]">Credits</p>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="font-mono text-2xl font-bold text-[#0f172a]">{quota}</span>
-                      <span className="text-[11px] text-[#64748b]">/ 15 max</span>
-                    </div>
-                    {/* Quota bar */}
-                    <div className="mt-2 h-1.5 w-full rounded-full bg-[#f1f5f9]">
-                      <motion.div
-                        className={cn("h-full rounded-full", quotaIsZero ? "bg-red-400" : "bg-[#3b82f6]")}
-                        initial={false}
-                        animate={{ width: `${Math.min((quota / 15) * 100, 100)}%` }}
-                        transition={{ duration: 0.4, ease: "easeOut" }}
-                      />
-                    </div>
-                    <p className="mt-2 text-[10px] leading-relaxed text-[#94a3b8]">
-                      Resets daily at 3:00 AM (device time at install).
-                    </p>
-                    <p className="mt-1 text-[10px] leading-relaxed text-[#94a3b8]">
-                      1 credit = 1 completed run or manual stop.
-                    </p>
-                  </div>
-
-                  {/* Section 2: API Toggle */}
-                  <div className="mt-4 border-t border-[#f1f5f9] pt-4">
                     <div className="flex items-center justify-between">
-                      <p className="text-[11px] font-medium text-[#334155]">Use custom OpenAI API key</p>
-                      <MiniToggle active={useOwnKey} onToggle={() => setUseOwnKey(!useOwnKey)} />
+                      <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-[#16a34a]" />
+                        <p className="text-[11px] font-medium text-[#334155]">API Active</p>
+                      </div>
+                      {!apiKeyEditing && (
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="text-[10px] text-[#3b82f6] hover:underline"
+                            onClick={() => setApiKeyEditing(true)}
+                          >
+                            Change
+                          </button>
+                          <button
+                            type="button"
+                            className="text-[10px] text-red-500 hover:underline"
+                            onClick={() => {
+                              setApiKey("")
+                              setApiKeyEditing(true)
+                            }}
+                          >
+                            Discontinue
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <AnimatePresence>
-                      {useOwnKey && (
+                      {apiKeyEditing && (
                         <motion.div
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
@@ -505,28 +548,38 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                 className="h-8 rounded border-[#e2e8f0] bg-transparent pl-8 text-xs placeholder:text-[#94a3b8]"
                               />
                             </div>
-                            <button
-                              type="button"
-                              className={cn(
-                                "flex h-7 w-full items-center justify-center rounded text-[10px] font-semibold transition-all",
-                                apiKey.trim()
-                                  ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                                  : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
-                              )}
-                              disabled={!apiKey.trim()}
-                            >
-                              Save
-                            </button>
-                            <p className="text-[9px] leading-relaxed text-[#94a3b8]">
-                              Your key is stored locally and never sent to our servers.
-                            </p>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                className={cn(
+                                  "flex h-7 flex-1 items-center justify-center rounded text-[10px] font-semibold transition-all",
+                                  apiKey.trim()
+                                    ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
+                                    : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
+                                )}
+                                disabled={!apiKey.trim()}
+                                onClick={() => setApiKeyEditing(false)}
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                className="flex h-7 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[10px] font-medium text-[#64748b] hover:border-[#cbd5e1]"
+                                onClick={() => setApiKeyEditing(false)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    <p className="mt-3 text-[10px] leading-relaxed text-[#94a3b8]">
+                      Refills to 5 daily (Max stockpile: 15)
+                    </p>
                   </div>
 
-                  {/* Section 3: Referral Code */}
+                  {/* Referral Code */}
                   <div className="mt-4 border-t border-[#f1f5f9] pt-4">
                     <p className="text-[11px] font-medium text-[#334155]">Referral code</p>
                     <div className="mt-2 flex gap-2">
@@ -599,6 +652,23 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             onToggle={() => setActiveStep(1)}
             canToggle={true}
           >
+            {/* Syncing state (LinkedIn) */}
+            {parsingStatus === "syncing" && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0077b5]" strokeWidth={2} />
+                  <p className="text-[12px] text-[#334155]">{"Syncing LinkedIn profile\u2026"}</p>
+                </div>
+                <div className="h-1 w-full overflow-hidden rounded-full bg-[#f1f5f9]">
+                  <motion.div
+                    className="h-full w-1/3 rounded-full bg-[#0077b5]"
+                    animate={{ x: ["0%", "200%", "0%"] }}
+                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Parsing state */}
             {parsingStatus === "parsing" && (
               <div className="space-y-2">
@@ -616,6 +686,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
             )}
 
+            {/* Done state */}
             {parsingStatus === "done" && resumeName && (
               <div className="flex items-center gap-2 rounded border border-[#16a34a]/20 bg-[#f0fdf4] px-3 py-2.5">
                 <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
@@ -626,17 +697,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
             )}
 
+            {/* Idle state: 3-column action tiles */}
             {parsingStatus === "idle" && (
-              <>
-                {resumeName && (
-                  <div className="mb-3 flex items-center gap-2 rounded border border-[#16a34a]/20 bg-[#f0fdf4] px-3 py-2">
-                    <FileText className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={1.5} />
-                    <span className="flex-1 truncate text-[11px] text-[#0f172a]">{resumeName}</span>
-                  </div>
-                )}
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
-                  className="flex w-full items-center justify-center gap-2 rounded border border-dashed border-[#cbd5e1] px-3 py-4 text-[12px] font-medium text-[#64748b] transition-all hover:border-[#94a3b8] hover:text-[#334155]"
+                  className="flex flex-col items-center justify-center gap-2 rounded border border-[#e2e8f0] bg-transparent px-2 py-5 text-center transition-all hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
                   onClick={() => {
                     setResumeModalOpen(true)
                     setResumeModalMode("choose")
@@ -645,17 +711,41 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     )
                   }}
                 >
-                  <Upload className="h-4 w-4" strokeWidth={1.5} />
-                  {resumeName ? "Replace resume" : "Click to upload"}
+                  <Upload className="h-5 w-5 text-[#64748b]" strokeWidth={1.5} />
+                  <span className="text-[11px] font-medium text-[#334155]">Upload PDF</span>
                 </button>
-              </>
+
+                <button
+                  type="button"
+                  className="flex flex-col items-center justify-center gap-2 rounded border border-[#e2e8f0] bg-transparent px-2 py-5 text-center transition-all hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
+                  onClick={() => {
+                    setResumeModalOpen(true)
+                    setResumeModalMode("paste")
+                    setSteps((prev) =>
+                      prev.step1 === "not-started" ? { ...prev, step1: "in-progress" } : prev
+                    )
+                  }}
+                >
+                  <ClipboardPaste className="h-5 w-5 text-[#64748b]" strokeWidth={1.5} />
+                  <span className="text-[11px] font-medium text-[#334155]">Paste Text</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="flex flex-col items-center justify-center gap-2 rounded border border-[#e2e8f0] bg-transparent px-2 py-5 text-center transition-all hover:border-[#0077b5]/30 hover:bg-[#f0f9ff]"
+                  onClick={handleConnectLinkedIn}
+                >
+                  <Linkedin className="h-5 w-5 text-[#0077b5]" strokeWidth={1.5} />
+                  <span className="text-[11px] font-medium text-[#334155]">Connect LinkedIn</span>
+                </button>
+              </div>
             )}
           </AccordionStep>
 
-          {/* ─── Step 2: Create Job Profile ────────────── */}
+          {/* ─── Step 2: Job Profile ──────────────────────── */}
           <AccordionStep
             number={2}
-            title="Create Job Profile"
+            title="Job Profile"
             status={steps.step2}
             isActive={activeStep === 2}
             onToggle={() => {
@@ -676,137 +766,120 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 AI Suggested
               </p>
               {AI_PROFILES.map((profile) => (
-                <button
-                  key={profile.id}
-                  type="button"
-                  className={cn(
-                    "w-full rounded border p-3 text-left transition-all",
-                    selectedProfile === profile.id
-                      ? "border-[#3b82f6] bg-[#eff6ff]"
-                      : "border-[#e2e8f0] bg-transparent hover:border-[#cbd5e1]",
-                    profileLocked && "cursor-not-allowed opacity-60"
+                <div key={profile.id} className="relative">
+                  {/* Pencil edit icon - top right */}
+                  {!profileLocked && selectedProfile === profile.id && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded text-[#94a3b8] hover:text-[#334155]"
+                      onClick={() => setEditingProfileId(editingProfileId === profile.id ? null : profile.id)}
+                    >
+                      <Pencil className="h-3 w-3" strokeWidth={1.5} />
+                    </button>
                   )}
-                  onClick={() => {
-                    if (profileLocked) return
-                    setSelectedProfile(profile.id)
-                    setCustomProfileOpen(false)
-                  }}
-                  disabled={profileLocked}
-                >
-                  <p className="text-[12px] font-semibold text-[#0f172a]">{profile.role}</p>
-                  <div className="mt-1 flex items-center gap-3 text-[10px] text-[#64748b]">
-                    <span>{profile.location}</span>
-                    <span>{profile.seniority}</span>
-                    <span>{profile.type}</span>
-                  </div>
-                  <p className="mt-1 text-[10px] text-[#94a3b8]">{profile.summary}</p>
-                </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-full rounded border p-3 text-left transition-all",
+                      selectedProfile === profile.id
+                        ? "border-[#3b82f6] bg-[#eff6ff]"
+                        : "border-[#e2e8f0] bg-transparent hover:border-[#cbd5e1]",
+                      profileLocked && "cursor-not-allowed opacity-60"
+                    )}
+                    onClick={() => {
+                      if (profileLocked) return
+                      setSelectedProfile(profile.id)
+                    }}
+                    disabled={profileLocked}
+                  >
+                    <div className="flex items-center justify-between pr-6">
+                      <p className="text-[12px] font-semibold text-[#0f172a]">{profile.role}</p>
+                      {/* Status dot */}
+                      <span className={cn("h-2 w-2 shrink-0 rounded-full", profile.dotColor)} />
+                    </div>
+                    {/* Location chips */}
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {profile.location.map((loc) => (
+                        <span
+                          key={loc}
+                          className="rounded border border-[#e2e8f0] bg-[#f8fafc] px-2 py-0.5 text-[10px] text-[#64748b]"
+                        >
+                          {loc}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-3 text-[10px] text-[#94a3b8]">
+                      <span>{profile.seniority}</span>
+                      <span>{profile.type}</span>
+                    </div>
+                  </button>
+                </div>
               ))}
             </div>
 
-            {/* B. Custom Profile */}
+            {/* B. User-Created Profile Card */}
             <div className="mt-3">
-              {!customProfileOpen ? (
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-[#94a3b8]">
+                Your Profile
+              </p>
+              <div
+                className={cn(
+                  "relative rounded border p-3 transition-all",
+                  selectedProfile === "user"
+                    ? "border-[#3b82f6] bg-[#eff6ff]"
+                    : "border-[#e2e8f0] bg-transparent",
+                  profileLocked && "cursor-not-allowed opacity-60"
+                )}
+              >
+                {/* Pencil edit */}
+                {!profileLocked && selectedProfile === "user" && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded text-[#94a3b8] hover:text-[#334155]"
+                    onClick={() => setEditingProfileId(editingProfileId === "user" ? null : "user")}
+                  >
+                    <Pencil className="h-3 w-3" strokeWidth={1.5} />
+                  </button>
+                )}
                 <button
                   type="button"
-                  className={cn(
-                    "flex w-full items-center justify-center gap-1.5 rounded border border-dashed border-[#cbd5e1] py-3 text-[11px] font-medium text-[#64748b] transition-all hover:border-[#94a3b8] hover:text-[#334155]",
-                    profileLocked && "cursor-not-allowed opacity-60"
-                  )}
+                  className="w-full text-left"
                   onClick={() => {
                     if (profileLocked) return
-                    setCustomProfileOpen(true)
-                    setSelectedProfile(null)
+                    setSelectedProfile("user")
                   }}
                   disabled={profileLocked}
                 >
-                  <Plus className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  Create Custom Job Profile
+                  <p className="text-[12px] font-semibold text-[#0f172a]">
+                    {userProfile.role || "Custom Profile"}
+                  </p>
+                  {/* Location chips */}
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {LOCATION_OPTIONS.map((loc) => (
+                      <button
+                        key={loc}
+                        type="button"
+                        className={cn(
+                          "rounded border px-2 py-0.5 text-[10px] transition-all",
+                          userProfile.location.includes(loc)
+                            ? "border-[#3b82f6] bg-[#dbeafe] text-[#1e40af]"
+                            : "border-[#e2e8f0] bg-[#f8fafc] text-[#64748b] hover:border-[#cbd5e1]"
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          toggleLocationChip(null, loc)
+                        }}
+                        disabled={profileLocked}
+                      >
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
                 </button>
-              ) : (
-                <div className="space-y-3 rounded border border-[#e2e8f0] p-3">
-                  <p className="text-[11px] font-semibold text-[#334155]">Custom Profile</p>
-                  <div>
-                    <label className="text-[10px] text-[#64748b]">LinkedIn Search URL or Job Title *</label>
-                    <Input
-                      type="text"
-                      value={customUrl}
-                      onChange={(e) => setCustomUrl(e.target.value)}
-                      placeholder="https://linkedin.com/jobs/search/... or Job Title"
-                      className="mt-1 h-8 rounded border-[#e2e8f0] bg-transparent text-xs placeholder:text-[#94a3b8]"
-                      disabled={profileLocked}
-                    />
-                    <p className="mt-1 text-[9px] text-[#94a3b8]">
-                      If URL is provided, it takes priority over title.
-                    </p>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
-                      <label className="text-[9px] text-[#64748b]">Location</label>
-                      <Input
-                        type="text"
-                        value={customLocation}
-                        onChange={(e) => setCustomLocation(e.target.value)}
-                        placeholder="Any"
-                        className="mt-1 h-7 rounded border-[#e2e8f0] bg-transparent text-[10px] placeholder:text-[#94a3b8]"
-                        disabled={profileLocked}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-[#64748b]">Seniority</label>
-                      <Input
-                        type="text"
-                        value={customSeniority}
-                        onChange={(e) => setCustomSeniority(e.target.value)}
-                        placeholder="Any"
-                        className="mt-1 h-7 rounded border-[#e2e8f0] bg-transparent text-[10px] placeholder:text-[#94a3b8]"
-                        disabled={profileLocked}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] text-[#64748b]">Type</label>
-                      <Input
-                        type="text"
-                        value={customType}
-                        onChange={(e) => setCustomType(e.target.value)}
-                        placeholder="Any"
-                        className="mt-1 h-7 rounded border-[#e2e8f0] bg-transparent text-[10px] placeholder:text-[#94a3b8]"
-                        disabled={profileLocked}
-                      />
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    className="text-[10px] text-[#64748b] hover:text-[#334155]"
-                    onClick={() => {
-                      setCustomProfileOpen(false)
-                      setCustomUrl("")
-                      setCustomTitle("")
-                    }}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              )}
-            </div>
 
-            {/* D. Preferences summary */}
-            {(selectedProfile || customProfileOpen) && !profileLocked && (
-              <div className="mt-4 border-t border-[#f1f5f9] pt-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-[#94a3b8]">{prefsLine}</p>
-                  <button
-                    type="button"
-                    className="flex items-center gap-1 text-[10px] text-[#64748b] hover:text-[#334155]"
-                    onClick={() => setPrefsEditing(!prefsEditing)}
-                  >
-                    <Pencil className="h-2.5 w-2.5" strokeWidth={1.5} />
-                    Edit
-                  </button>
-                </div>
-
+                {/* Editable fields (when editing) */}
                 <AnimatePresence>
-                  {prefsEditing && (
+                  {editingProfileId === "user" && (
                     <motion.div
                       initial={{ height: 0, opacity: 0 }}
                       animate={{ height: "auto", opacity: 1 }}
@@ -814,38 +887,247 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       transition={{ duration: 0.15 }}
                       className="overflow-hidden"
                     >
-                      <div className="mt-3 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-[#334155]">Remote</span>
-                          <MiniToggle active={locationRemote} onToggle={() => setLocationRemote(!locationRemote)} />
+                      <div className="mt-3 space-y-2 border-t border-[#f1f5f9] pt-3">
+                        <div>
+                          <label className="text-[9px] text-[#64748b]">Job Title *</label>
+                          <Input
+                            type="text"
+                            value={userProfile.role}
+                            onChange={(e) => setUserProfile((p) => ({ ...p, role: e.target.value }))}
+                            placeholder="e.g. Senior Frontend Engineer"
+                            className="mt-1 h-7 rounded border-[#e2e8f0] bg-transparent text-[11px] placeholder:text-[#94a3b8]"
+                            disabled={profileLocked}
+                          />
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-[#334155]">Seniority: {seniority}</span>
-                          <button
-                            type="button"
-                            className="rounded border border-[#e2e8f0] bg-transparent px-2 py-0.5 text-[10px] text-[#64748b] hover:border-[#cbd5e1]"
-                            onClick={() => setSeniority(seniority === "senior" ? "mid" : "senior")}
-                          >
-                            Toggle
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] text-[#334155]">Type: {jobType}</span>
-                          <button
-                            type="button"
-                            className="rounded border border-[#e2e8f0] bg-transparent px-2 py-0.5 text-[10px] text-[#64748b] hover:border-[#cbd5e1]"
-                            onClick={() => setJobType(jobType === "full-time" ? "contract" : "full-time")}
-                          >
-                            Toggle
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Shield className="h-3 w-3 text-[#64748b]" strokeWidth={1.5} />
-                            <span className="text-[11px] text-[#334155]">Sponsorship</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] text-[#64748b]">Seniority</label>
+                            <Input
+                              type="text"
+                              value={userProfile.seniority}
+                              onChange={(e) => setUserProfile((p) => ({ ...p, seniority: e.target.value }))}
+                              placeholder="Senior"
+                              className="mt-1 h-7 rounded border-[#e2e8f0] bg-transparent text-[10px] placeholder:text-[#94a3b8]"
+                              disabled={profileLocked}
+                            />
                           </div>
-                          <MiniToggle active={sponsorship} onToggle={() => setSponsorship(!sponsorship)} />
+                          <div>
+                            <label className="text-[9px] text-[#64748b]">Type</label>
+                            <Input
+                              type="text"
+                              value={userProfile.type}
+                              onChange={(e) => setUserProfile((p) => ({ ...p, type: e.target.value }))}
+                              placeholder="Full-time"
+                              className="mt-1 h-7 rounded border-[#e2e8f0] bg-transparent text-[10px] placeholder:text-[#94a3b8]"
+                              disabled={profileLocked}
+                            />
+                          </div>
                         </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
+
+            {/* C. Necessary Info: 2x2 Matrix */}
+            {(selectedProfile || userProfile.role.trim()) && (
+              <div className="mt-4 border-t border-[#f1f5f9] pt-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94a3b8]">
+                    Necessary Info
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex h-5 w-5 items-center justify-center rounded border border-[#e2e8f0] text-[10px] text-[#64748b] hover:border-[#cbd5e1]",
+                        profileLocked && "cursor-not-allowed opacity-40"
+                      )}
+                      onClick={() => !profileLocked && setAddingCountry(true)}
+                      disabled={profileLocked}
+                      title="Add country"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+
+                {/* Add country input */}
+                <AnimatePresence>
+                  {addingCountry && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 flex gap-2">
+                        <Input
+                          type="text"
+                          value={newCountryName}
+                          onChange={(e) => setNewCountryName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") addCountryToMatrix()
+                          }}
+                          placeholder="Country name"
+                          className="h-7 flex-1 rounded border-[#e2e8f0] bg-transparent text-[10px] placeholder:text-[#94a3b8]"
+                          autoFocus
+                        />
+                        <button
+                          type="button"
+                          className="flex h-7 items-center rounded bg-[#0f172a] px-2 text-[10px] font-medium text-white hover:bg-[#1e293b]"
+                          onClick={addCountryToMatrix}
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          className="flex h-7 items-center rounded border border-[#e2e8f0] px-2 text-[10px] text-[#64748b] hover:border-[#cbd5e1]"
+                          onClick={() => {
+                            setAddingCountry(false)
+                            setNewCountryName("")
+                          }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Matrix table */}
+                <div className="mt-3 overflow-x-auto">
+                  <table className="w-full border-collapse text-[10px]">
+                    <thead>
+                      <tr>
+                        <th className="border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-left font-medium text-[#64748b]" />
+                        {matrixCountries.map((country) => (
+                          <th
+                            key={country}
+                            className="border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-center font-medium text-[#334155]"
+                          >
+                            {country}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="border border-[#e2e8f0] px-3 py-2 font-medium text-[#64748b]">
+                          Work Authorization
+                        </td>
+                        {matrixCountries.map((country) => (
+                          <td key={country} className="border border-[#e2e8f0] p-0 text-center">
+                            <button
+                              type="button"
+                              className={cn(
+                                "flex h-9 w-full items-center justify-center transition-colors",
+                                matrix[country]?.workAuth === "yes"
+                                  ? "bg-[#f0fdf4] text-[#16a34a]"
+                                  : "bg-[#fef2f2] text-[#dc2626]",
+                                profileLocked && "cursor-not-allowed"
+                              )}
+                              onClick={() => toggleMatrixCell(country, "workAuth")}
+                              disabled={profileLocked}
+                            >
+                              {matrix[country]?.workAuth === "yes" ? (
+                                <Check className="h-4 w-4" strokeWidth={2.5} />
+                              ) : (
+                                <X className="h-4 w-4" strokeWidth={2.5} />
+                              )}
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="border border-[#e2e8f0] px-3 py-2 font-medium text-[#64748b]">
+                          Sponsorship
+                        </td>
+                        {matrixCountries.map((country) => (
+                          <td key={country} className="border border-[#e2e8f0] p-0 text-center">
+                            <button
+                              type="button"
+                              className={cn(
+                                "flex h-9 w-full items-center justify-center transition-colors",
+                                matrix[country]?.sponsorship === "yes"
+                                  ? "bg-[#f0fdf4] text-[#16a34a]"
+                                  : "bg-[#fef2f2] text-[#dc2626]",
+                                profileLocked && "cursor-not-allowed"
+                              )}
+                              onClick={() => toggleMatrixCell(country, "sponsorship")}
+                              disabled={profileLocked}
+                            >
+                              {matrix[country]?.sponsorship === "yes" ? (
+                                <Check className="h-4 w-4" strokeWidth={2.5} />
+                              ) : (
+                                <X className="h-4 w-4" strokeWidth={2.5} />
+                              )}
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* D. EEO Section */}
+            {(selectedProfile || userProfile.role.trim()) && (
+              <div className="mt-4 border-t border-[#f1f5f9] pt-3">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between"
+                  onClick={() => setEeoExpanded(!eeoExpanded)}
+                >
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-3 w-3 text-[#64748b]" strokeWidth={1.5} />
+                    <span className="text-[11px] font-medium text-[#334155]">
+                      EEO: Prefer not to say
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <MiniToggle
+                      active={eeoOptOut}
+                      onToggle={() => setEeoOptOut(!eeoOptOut)}
+                      disabled={profileLocked}
+                    />
+                    <ChevronDown
+                      className={cn(
+                        "h-3 w-3 text-[#94a3b8] transition-transform",
+                        eeoExpanded && "rotate-180"
+                      )}
+                      strokeWidth={1.5}
+                    />
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {eeoExpanded && !eeoOptOut && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        {["Gender", "Race", "Veteran", "Disability"].map((field) => (
+                          <div key={field}>
+                            <label className="text-[9px] text-[#64748b]">{field}</label>
+                            <select
+                              className="mt-1 h-7 w-full rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] text-[#334155] outline-none"
+                              disabled={profileLocked}
+                              defaultValue=""
+                            >
+                              <option value="">Select...</option>
+                              <option value="prefer-not">Prefer not to say</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+                        ))}
                       </div>
                     </motion.div>
                   )}
@@ -854,13 +1136,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             )}
 
             {/* Save profile */}
-            {!profileLocked && steps.step2 === "in-progress" && (selectedProfile || (customProfileOpen && (customUrl.trim() || customTitle.trim()))) && (
+            {!profileLocked && steps.step2 === "in-progress" && (selectedProfile || userProfile.role.trim()) && (
               <button
                 type="button"
                 className="mt-4 flex h-9 w-full items-center justify-center rounded bg-[#0f172a] text-[12px] font-semibold text-white transition-all hover:bg-[#1e293b]"
                 onClick={handleSaveProfile}
               >
-                Save profile & continue
+                {"Save profile & continue"}
               </button>
             )}
           </AccordionStep>
@@ -902,20 +1184,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 Apply All
               </button>
 
-              {/* Recommend (Disabled) */}
+              {/* Recommend (Coming Soon) */}
               <button
                 type="button"
                 className="flex h-10 w-full cursor-not-allowed items-center justify-center rounded border border-[#e2e8f0] text-[12px] font-medium text-[#94a3b8]"
                 disabled
                 title="AI analysis not available in MVP"
               >
-                Recommend
+                Recommend (coming soon)
               </button>
-              <p className="text-center text-[10px] text-[#94a3b8]">
-                Coming soon
-              </p>
-
-              {/* // TODO: Public version – inject Select buttons into LinkedIn HTML */}
             </div>
           </AccordionStep>
         </div>
@@ -1032,6 +1309,23 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <div className="w-full max-w-[300px] px-6">
                 <h3 className="text-base font-semibold text-[#0f172a]">Before you continue</h3>
                 <div className="mt-4 space-y-3">
+                  {/* Target summary */}
+                  {selectedProfile && AI_PROFILES.find((p) => p.id === selectedProfile) && (
+                    <div className="rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
+                      <p className="text-[10px] text-[#64748b]">Target position</p>
+                      <p className="mt-0.5 text-[12px] font-medium text-[#0f172a]">
+                        {AI_PROFILES.find((p) => p.id === selectedProfile)?.role}
+                      </p>
+                    </div>
+                  )}
+                  {selectedProfile === "user" && userProfile.role && (
+                    <div className="rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
+                      <p className="text-[10px] text-[#64748b]">Target position</p>
+                      <p className="mt-0.5 text-[12px] font-medium text-[#0f172a]">
+                        {userProfile.role}
+                      </p>
+                    </div>
+                  )}
                   <p className="text-[12px] leading-relaxed text-[#64748b]">
                     Y.EAA will automate job applications on your behalf. By proceeding, you acknowledge:
                   </p>
@@ -1045,19 +1339,38 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       Platform behavior may change at any time.
                     </li>
                   </ul>
+                  {/* I understand checkbox */}
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={confirmAcknowledged}
+                      onChange={(e) => setConfirmAcknowledged(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-[#e2e8f0] text-[#0f172a] accent-[#0f172a]"
+                    />
+                    <span className="text-[11px] font-medium text-[#334155]">I understand</span>
+                  </label>
                 </div>
                 <div className="mt-6 flex gap-3">
                   <button
                     type="button"
                     className="flex h-9 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[11px] font-medium text-[#64748b] transition-all hover:border-[#cbd5e1]"
-                    onClick={() => setConfirmModalOpen(false)}
+                    onClick={() => {
+                      setConfirmModalOpen(false)
+                      setConfirmAcknowledged(false)
+                    }}
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
-                    className="flex h-9 flex-1 items-center justify-center rounded bg-[#0f172a] text-[11px] font-semibold text-white transition-all hover:bg-[#1e293b]"
+                    className={cn(
+                      "flex h-9 flex-1 items-center justify-center rounded text-[11px] font-semibold transition-all",
+                      confirmAcknowledged
+                        ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
+                        : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
+                    )}
                     onClick={handleConfirmProceed}
+                    disabled={!confirmAcknowledged}
                   >
                     Proceed
                   </button>
@@ -1090,7 +1403,10 @@ function MiniToggle({
         active ? "bg-[#3b82f6]" : "bg-[#e2e8f0]",
         disabled && "cursor-not-allowed opacity-50"
       )}
-      onClick={onToggle}
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
       disabled={disabled}
     >
       <motion.div
@@ -1123,7 +1439,7 @@ function AccordionStep({
 }) {
   return (
     <div className={cn("border-b border-[#e2e8f0] border-l-4", BORDER_COLOR[status])}>
-      {/* Step header - neutral background */}
+      {/* Step header */}
       <button
         type="button"
         className={cn(
