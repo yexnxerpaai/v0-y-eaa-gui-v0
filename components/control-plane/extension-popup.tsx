@@ -30,6 +30,8 @@ import {
   RotateCcw,
   Zap,
   Linkedin,
+  RefreshCw,
+  ExternalLink,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
@@ -137,7 +139,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
   const [apiKey, setApiKey] = useState("sk-...hidden")
   const [apiKeyEditing, setApiKeyEditing] = useState(false)
-  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1)
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3 | null>(1)
   const [steps, setSteps] = useState<StepState>({
     step1: "not-started",
     step2: "not-started",
@@ -163,11 +165,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [userProfile] = useState({ role: "", targetingLocations: "", location: [] as string[], seniority: "", type: "" })
   const [profileLocked, setProfileLocked] = useState(false)
   const LOCATION_OPTIONS = ["Remote", "On-Site", "Hybrid"]
-  const [matrixCountries, setMatrixCountries] = useState<string[]>(["USA", "Japan"])
-  const [matrix, setMatrix] = useState<MatrixState>({
-    USA: { workAuth: "yes", sponsorship: "yes" },
-    Japan: { workAuth: "yes", sponsorship: "yes" },
-  })
+
+  // Countries detected from resume (simulated)
+  const [detectedCountries, setDetectedCountries] = useState<string[]>([])
+  const [matrixCountries, setMatrixCountries] = useState<string[]>([])
+  const [matrix, setMatrix] = useState<MatrixState>({})
   const [addingCountry, setAddingCountry] = useState(false)
   const [newCountryName, setNewCountryName] = useState("")
   const [eeoExpanded, setEeoExpanded] = useState(false)
@@ -208,6 +210,27 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setTimeout(() => setCreditToast(null), 3000)
   }, [])
 
+  /* ─── Start Fresh ──────────────────────────────────── */
+
+  const handleStartFresh = useCallback(() => {
+    setSteps({ step1: "not-started", step2: "not-started", step3: "not-started" })
+    setActiveStep(1)
+    setParsingStatus("idle")
+    setResumeName(null)
+    setSelectedProfile(null)
+    setEditingProfileId(null)
+    setAiProfileOverrides({})
+    setProfileLocked(false)
+    setDetectedCountries([])
+    setMatrixCountries([])
+    setMatrix({})
+    setEeoExpanded(false)
+    setRunState("idle")
+    setConfirmModalOpen(false)
+    setConfirmAcknowledged(false)
+    setTopPositions(10)
+  }, [])
+
   /* ─── Step 1: Resume Upload ─────────────────────────── */
 
   const simulateParsing = useCallback((name: string) => {
@@ -217,6 +240,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setActiveStep(1)
     setTimeout(() => {
       setParsingStatus("done")
+      // Simulate detecting countries from resume
+      const countries = ["United States", "Japan"]
+      setDetectedCountries(countries)
+      setMatrixCountries(countries)
+      setMatrix(
+        countries.reduce((acc, c) => ({ ...acc, [c]: { workAuth: "yes", sponsorship: "yes" } }), {} as MatrixState)
+      )
       setSteps((prev) => ({
         ...prev,
         step1: "completed",
@@ -250,6 +280,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setTimeout(() => {
       setResumeName("LinkedIn Profile (synced)")
       setParsingStatus("done")
+      const countries = ["United States"]
+      setDetectedCountries(countries)
+      setMatrixCountries(countries)
+      setMatrix(
+        countries.reduce((acc, c) => ({ ...acc, [c]: { workAuth: "yes", sponsorship: "yes" } }), {} as MatrixState)
+      )
       setSteps((prev) => ({
         ...prev,
         step1: "completed",
@@ -257,6 +293,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
       }))
       setTimeout(() => setActiveStep(2), 400)
     }, 3000)
+  }, [])
+
+  const handleUploadNewResume = useCallback(() => {
+    setParsingStatus("idle")
+    setResumeName(null)
+    setSteps((prev) => ({ ...prev, step1: "not-started" }))
+    setActiveStep(1)
   }, [])
 
   /* ─── Step 2: Matrix toggle ─────────────────────────── */
@@ -283,9 +326,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     if (!selectedProfile && !userProfile.role.trim()) return
     setSteps((prev) => ({ ...prev, step2: "completed", step3: "in-progress" }))
     setProfileLocked(true)
-    setConfirmModalOpen(true)
-    setConfirmAcknowledged(false)
+    setActiveStep(3)
   }, [selectedProfile, userProfile.role])
+
+  const handleGoToLinkedIn = useCallback(() => {
+    window.open("https://www.linkedin.com/jobs/search/", "_blank")
+  }, [])
 
   /* ─── Step 3: Run State ─────────────────────────────── */
 
@@ -295,6 +341,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setActiveStep(3)
     window.open("https://www.linkedin.com/jobs/search/", "_blank")
   }, [])
+
+  const handleApplySelected = useCallback(() => {
+    if (steps.step2 !== "completed") return
+    setConfirmModalOpen(true)
+    setConfirmAcknowledged(false)
+  }, [steps.step2])
 
   const handleApplyAll = useCallback(() => {
     if (steps.step2 !== "completed") return
@@ -353,6 +405,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const getProfileLocation = (profileId: string) => {
     return aiProfileOverrides[profileId]?.location || AI_PROFILES.find((p) => p.id === profileId)?.location || []
   }
+
+  /* ─── Step toggle (collapse on re-click) ───────────── */
+
+  const handleStepToggle = useCallback((step: 1 | 2 | 3) => {
+    setActiveStep((prev) => (prev === step ? null : step))
+  }, [])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -458,23 +516,33 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   BETA
                 </span>
               </div>
-              {/* Balance pill */}
-              <button
-                ref={balanceRef}
-                type="button"
-                className={cn(
-                  "group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all",
-                  quotaIsZero
-                    ? "border-red-200 bg-red-50 text-red-600 hover:border-red-300"
-                    : "border-border/60 bg-background text-foreground hover:border-border hover:shadow-sm"
-                )}
-                onClick={() => setPopoverOpen(!popoverOpen)}
-              >
-                <Zap className={cn("h-3 w-3", quotaIsZero ? "text-red-500" : "text-[#eab308]")} strokeWidth={2} />
-                <span className="font-mono text-sm font-bold tabular-nums">{quota}</span>
-                <span className="hidden text-muted-foreground sm:inline">credits</span>
-                <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">+</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Start Fresh */}
+                <button
+                  type="button"
+                  className="flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-background px-3 text-xs font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm"
+                  onClick={handleStartFresh}
+                >
+                  <RefreshCw className="h-3 w-3" strokeWidth={1.5} />
+                  Start Fresh
+                </button>
+                {/* Balance pill */}
+                <button
+                  ref={balanceRef}
+                  type="button"
+                  className={cn(
+                    "group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all",
+                    quotaIsZero
+                      ? "border-red-200 bg-red-50 text-red-600 hover:border-red-300"
+                      : "border-border/60 bg-background text-foreground hover:border-border hover:shadow-sm"
+                  )}
+                  onClick={() => setPopoverOpen(!popoverOpen)}
+                >
+                  <Zap className={cn("h-3 w-3", quotaIsZero ? "text-red-500" : "text-[#eab308]")} strokeWidth={2} />
+                  <span className="font-mono text-sm font-bold tabular-nums">{quota}</span>
+                  <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">+</span>
+                </button>
+              </div>
             </div>
           </SheetHeader>
 
@@ -582,7 +650,26 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         <div className="flex-1 overflow-y-auto">
 
           {/* Step 1: Upload Resume */}
-          <StepAccordion number={1} title="Upload Resume" status={steps.step1} isActive={activeStep === 1} onToggle={() => setActiveStep(1)} canToggle={true}>
+          <StepAccordion
+            number={1}
+            title="Upload Resume"
+            status={steps.step1}
+            isActive={activeStep === 1}
+            onToggle={() => handleStepToggle(1)}
+            canToggle={true}
+            titleAction={
+              steps.step1 === "completed" ? (
+                <button
+                  type="button"
+                  className="flex h-6 items-center gap-1 rounded-md border border-border/60 bg-background px-2 text-[10px] font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm"
+                  onClick={(e) => { e.stopPropagation(); handleUploadNewResume() }}
+                >
+                  <Plus className="h-2.5 w-2.5" strokeWidth={2} />
+                  New
+                </button>
+              ) : undefined
+            }
+          >
             {parsingStatus === "syncing" && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2.5">
@@ -612,7 +699,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#16a34a]/10">
                   <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2.5} />
                 </span>
-                <div className="flex-1 min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-semibold text-[#15803d]">Resume parsed</p>
                   <p className="truncate text-sm text-[#16a34a]/70">{resumeName}</p>
                 </div>
@@ -646,13 +733,110 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           </StepAccordion>
 
           {/* Step 2: Job Profile */}
-          <StepAccordion number={2} title="Job Profile" status={steps.step2} isActive={activeStep === 2} onToggle={() => { if (steps.step2 !== "not-started") setActiveStep(2) }} canToggle={steps.step2 !== "not-started"}>
+          <StepAccordion number={2} title="Job Profile" status={steps.step2} isActive={activeStep === 2} onToggle={() => { if (steps.step2 !== "not-started") handleStepToggle(2) }} canToggle={steps.step2 !== "not-started"}>
             {profileLocked && (
               <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[#fde68a]/40 bg-[#fffbeb] px-4 py-2.5">
                 <Lock className="h-3 w-3 text-[#ca8a04]" strokeWidth={1.5} />
                 <span className="text-sm font-medium text-[#92400e]">Profile locked for this session</span>
               </div>
             )}
+
+            {/* Work Authorization (detected from resume) */}
+            {matrixCountries.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Work Authorization</p>
+                    {detectedCountries.length > 0 && (
+                      <span className="rounded bg-[#f0f7ff] px-1.5 py-0.5 text-[10px] font-medium text-[#3b82f6]">From resume</span>
+                    )}
+                  </div>
+                  <button type="button" className="flex h-5 w-5 items-center justify-center rounded-md border border-border/60 text-sm font-bold text-muted-foreground transition-colors hover:border-border hover:text-foreground" onClick={() => setAddingCountry(true)}>+</button>
+                </div>
+
+                <AnimatePresence>
+                  {addingCountry && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                      <div className="mt-2.5 flex gap-2">
+                        <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-muted/50 text-sm placeholder:text-muted-foreground/60" autoFocus />
+                        <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-sm font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
+                        <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-sm text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="mt-3 overflow-hidden rounded-xl border border-border/60">
+                  <table className="w-full border-collapse text-sm">
+                    <thead>
+                      <tr>
+                        <th className="w-[110px] min-w-[110px] border-b border-r border-border/40 bg-muted/50 px-3 py-2.5 text-left font-semibold text-muted-foreground" />
+                        {matrixCountries.map((country) => (
+                          <th key={country} className="border-b border-r border-border/40 bg-muted/50 px-3 py-2.5 text-center font-semibold text-foreground last:border-r-0">
+                            {country}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td className="w-[110px] min-w-[110px] border-b border-r border-border/40 px-3 py-2 font-medium text-muted-foreground">Work Auth</td>
+                        {matrixCountries.map((country) => (
+                          <td key={country} className="border-b border-r border-border/40 p-0 text-center last:border-r-0">
+                            <button type="button" className={cn("flex h-10 w-full items-center justify-center transition-colors", matrix[country]?.workAuth === "yes" ? "bg-[#f0fdf4] text-[#16a34a] hover:bg-[#dcfce7]" : "bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]")} onClick={() => toggleMatrixCell(country, "workAuth")}>
+                              {matrix[country]?.workAuth === "yes" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <X className="h-4 w-4" strokeWidth={2.5} />}
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                      <tr>
+                        <td className="w-[110px] min-w-[110px] border-r border-border/40 px-3 py-2 font-medium text-muted-foreground">Sponsorship</td>
+                        {matrixCountries.map((country) => (
+                          <td key={country} className="border-r border-border/40 p-0 text-center last:border-r-0">
+                            <button type="button" className={cn("flex h-10 w-full items-center justify-center transition-colors", matrix[country]?.sponsorship === "yes" ? "bg-[#f0fdf4] text-[#16a34a] hover:bg-[#dcfce7]" : "bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]")} onClick={() => toggleMatrixCell(country, "sponsorship")}>
+                              {matrix[country]?.sponsorship === "yes" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <X className="h-4 w-4" strokeWidth={2.5} />}
+                            </button>
+                          </td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* EEO */}
+            <div className={cn(matrixCountries.length > 0 ? "mb-5" : "mb-5")}>
+              <button type="button" className="flex w-full items-center justify-between rounded-lg px-0 py-0" onClick={() => setEeoExpanded(!eeoExpanded)}>
+                <div className="flex items-center gap-2.5">
+                  <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-foreground">EEO Responses</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Optional</span>
+                </div>
+                <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", eeoExpanded && "rotate-180")} strokeWidth={1.5} />
+              </button>
+              <AnimatePresence>
+                {eeoExpanded && (
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      {["Gender", "Race", "Veteran", "Disability"].map((field) => (
+                        <div key={field}>
+                          <label className="text-sm font-medium text-muted-foreground">{field}</label>
+                          <select className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#3b82f6]" disabled={profileLocked} defaultValue="">
+                            <option value="">Select...</option>
+                            <option value="prefer-not">Prefer not to say</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Divider between compliance and profiles */}
+            <div className="mb-5 h-px bg-border" />
 
             {/* AI Suggested */}
             <div className="space-y-2.5">
@@ -742,115 +926,36 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </button>
             </div>
 
-            {/* Matrix */}
-            <div className="mt-6 border-t border-border pt-5">
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Work Authorization</p>
-                <div className="flex items-center gap-1.5">
-                  <button type="button" className="flex h-5 w-5 items-center justify-center rounded-md border border-border/60 text-sm font-bold text-muted-foreground transition-colors hover:border-border hover:text-foreground" onClick={() => setAddingCountry(true)}>+</button>
-                </div>
-              </div>
-
-              <AnimatePresence>
-                {addingCountry && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
-                    <div className="mt-2.5 flex gap-2">
-                      <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-muted/50 text-sm placeholder:text-muted-foreground/60" autoFocus />
-                      <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-sm font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
-                      <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-sm text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <div className="mt-3 overflow-hidden rounded-xl border border-border/60">
-                <table className="w-full border-collapse text-sm">
-                  <thead>
-                    <tr>
-                      <th className="w-[110px] min-w-[110px] border-b border-r border-border/40 bg-muted/50 px-3 py-2.5 text-left font-semibold text-muted-foreground" />
-                      {matrixCountries.map((country) => (
-                        <th key={country} className="border-b border-r border-border/40 bg-muted/50 px-3 py-2.5 text-center font-semibold text-foreground last:border-r-0">
-                          {country}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="w-[110px] min-w-[110px] border-b border-r border-border/40 px-3 py-2 font-medium text-muted-foreground">Work Auth</td>
-                      {matrixCountries.map((country) => (
-                        <td key={country} className="border-b border-r border-border/40 p-0 text-center last:border-r-0">
-                          <button type="button" className={cn("flex h-10 w-full items-center justify-center transition-colors", matrix[country]?.workAuth === "yes" ? "bg-[#f0fdf4] text-[#16a34a] hover:bg-[#dcfce7]" : "bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]")} onClick={() => toggleMatrixCell(country, "workAuth")}>
-                            {matrix[country]?.workAuth === "yes" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <X className="h-4 w-4" strokeWidth={2.5} />}
-                          </button>
-                        </td>
-                      ))}
-                    </tr>
-                    <tr>
-                      <td className="w-[110px] min-w-[110px] border-r border-border/40 px-3 py-2 font-medium text-muted-foreground">Sponsorship</td>
-                      {matrixCountries.map((country) => (
-                        <td key={country} className="border-r border-border/40 p-0 text-center last:border-r-0">
-                          <button type="button" className={cn("flex h-10 w-full items-center justify-center transition-colors", matrix[country]?.sponsorship === "yes" ? "bg-[#f0fdf4] text-[#16a34a] hover:bg-[#dcfce7]" : "bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]")} onClick={() => toggleMatrixCell(country, "sponsorship")}>
-                            {matrix[country]?.sponsorship === "yes" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <X className="h-4 w-4" strokeWidth={2.5} />}
-                          </button>
-                        </td>
-                      ))}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* EEO */}
-            <div className="mt-6 border-t border-border pt-5">
-              <button type="button" className="flex w-full items-center justify-between rounded-lg px-0 py-0" onClick={() => setEeoExpanded(!eeoExpanded)}>
-                <div className="flex items-center gap-2.5">
-                  <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-foreground">EEO Responses</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Optional</span>
-                </div>
-                <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", eeoExpanded && "rotate-180")} strokeWidth={1.5} />
-              </button>
-              <AnimatePresence>
-                {eeoExpanded && (
-                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
-                    <div className="mt-3 grid grid-cols-2 gap-3">
-                      {["Gender", "Race", "Veteran", "Disability"].map((field) => (
-                        <div key={field}>
-                          <label className="text-sm font-medium text-muted-foreground">{field}</label>
-                          <select className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#3b82f6]" disabled={profileLocked} defaultValue="">
-                            <option value="">Select...</option>
-                            <option value="prefer-not">Prefer not to say</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </div>
-                      ))}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Start Applying */}
+            {/* Start Applying + Go to LinkedIn */}
             {!profileLocked && steps.step2 === "in-progress" && (
-              <button
-                type="button"
-                className={cn(
-                  "mt-7 flex h-11 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
-                  selectedProfile || userProfile.role.trim()
-                    ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
-                    : "cursor-not-allowed bg-muted text-muted-foreground"
-                )}
-                onClick={handleStartApplying}
-                disabled={!selectedProfile && !userProfile.role.trim()}
-              >
-                Start Applying
-              </button>
+              <div className="mt-7 space-y-2.5">
+                <button
+                  type="button"
+                  className={cn(
+                    "flex h-11 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
+                    selectedProfile || userProfile.role.trim()
+                      ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
+                      : "cursor-not-allowed bg-muted text-muted-foreground"
+                  )}
+                  onClick={handleStartApplying}
+                  disabled={!selectedProfile && !userProfile.role.trim()}
+                >
+                  Start Applying
+                </button>
+                <button
+                  type="button"
+                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm"
+                  onClick={handleGoToLinkedIn}
+                >
+                  <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
+                  Open LinkedIn Jobs
+                </button>
+              </div>
             )}
           </StepAccordion>
 
           {/* Step 3: Start Fill */}
-          <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") setActiveStep(3) }} canToggle={steps.step3 !== "not-started"}>
+          <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") handleStepToggle(3) }} canToggle={steps.step3 !== "not-started"}>
             <div className="space-y-4">
               <div className="flex items-center gap-2.5">
                 <span className="text-sm font-medium text-foreground">Apply the top</span>
@@ -858,6 +963,22 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <span className="text-sm font-medium text-foreground">positions</span>
               </div>
 
+              {/* Apply the Selected */}
+              <button
+                type="button"
+                className={cn(
+                  "flex h-11 w-full items-center justify-center rounded-xl border-2 border-foreground text-sm font-bold tracking-wide transition-all",
+                  runState === "idle"
+                    ? "bg-background text-foreground hover:bg-muted"
+                    : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
+                )}
+                onClick={runState === "idle" ? handleApplySelected : undefined}
+                disabled={runState !== "idle"}
+              >
+                Apply the Selected
+              </button>
+
+              {/* Apply All */}
               <button
                 type="button"
                 className={cn(
@@ -962,6 +1083,7 @@ function StepAccordion({
   isActive,
   onToggle,
   canToggle,
+  titleAction,
   children,
 }: {
   number: number
@@ -970,6 +1092,7 @@ function StepAccordion({
   isActive: boolean
   onToggle: () => void
   canToggle: boolean
+  titleAction?: React.ReactNode
   children: React.ReactNode
 }) {
   const indicator = STEP_INDICATOR[status]
@@ -1000,6 +1123,7 @@ function StepAccordion({
           )}>
             {title}
           </span>
+          {titleAction && <span className="ml-1">{titleAction}</span>}
         </div>
         <div className="flex items-center gap-2">
           <span className={cn(
@@ -1010,7 +1134,7 @@ function StepAccordion({
           )}>
             {STATUS_COPY[status]}
           </span>
-          {canToggle && status !== "completed" && (
+          {canToggle && (
             <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isActive && "rotate-180")} strokeWidth={1.5} />
           )}
         </div>
