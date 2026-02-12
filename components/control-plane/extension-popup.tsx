@@ -2,7 +2,7 @@
 
 import React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
-import { createPortal } from "react-dom"
+
 import {
   Sheet,
   SheetContent,
@@ -126,9 +126,7 @@ interface MatrixState {
 export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [quota, setQuota] = useState(5)
   const [popoverOpen, setPopoverOpen] = useState(false)
-  const [popoverPos, setPopoverPos] = useState<{ top: number; right: number } | null>(null)
   const balanceRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
 
   const [apiKey, setApiKey] = useState("sk-...hidden")
   const [apiKeyEditing, setApiKeyEditing] = useState(false)
@@ -153,8 +151,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     role?: string
     targetingLocations?: string
     location?: string[]
-    seniority?: string
-    type?: string
+    seniority?: string[]
+    type?: string[]
   }>>({})
 
   // Countries detected from resume
@@ -185,30 +183,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
   /* ─── Popover positioning (portal-based) ───────────── */
 
-  useEffect(() => {
-    if (popoverOpen && balanceRef.current) {
-      const rect = balanceRef.current.getBoundingClientRect()
-      setPopoverPos({
-        top: rect.bottom + 8,
-        right: window.innerWidth - rect.right,
-      })
-    }
-  }, [popoverOpen])
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (
-        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
-        balanceRef.current && !balanceRef.current.contains(e.target as Node)
-      ) {
-        setPopoverOpen(false)
-      }
-    }
-    if (popoverOpen) {
-      document.addEventListener("mousedown", handleClickOutside)
-      return () => document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [popoverOpen])
+  /* Account takeover closed via X button only */
 
   const showCreditToast = useCallback((msg: string) => {
     setCreditToast(msg)
@@ -408,8 +383,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const getProfileField = (profileId: string, field: "role" | "targetingLocations" | "seniority" | "type" | "location") => {
     const override = aiProfileOverrides[profileId]
     const base = AI_PROFILES.find((p) => p.id === profileId)
-    if (!base) return field === "location" ? [] : ""
+    if (!base) return field === "location" || field === "seniority" || field === "type" ? [] : ""
     if (field === "location") return override?.location || base.location
+    if (field === "seniority") return override?.seniority || [base.seniority]
+    if (field === "type") return override?.type || [base.type]
     return override?.[field] ?? base[field]
   }
 
@@ -551,6 +528,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 >
                   <Zap className={cn("h-3 w-3", quotaIsZero ? "text-red-500" : "text-[#eab308]")} strokeWidth={2} />
                   <span className="font-mono text-sm font-bold tabular-nums">{quota}</span>
+                  <span className="text-sm text-muted-foreground">credits</span>
                   <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">+</span>
                 </button>
               </div>
@@ -570,19 +548,23 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           </div>
         </div>
 
-        {/* ─── Credit Popover (portal, fixed position) ───── */}
-        {popoverOpen && popoverPos && createPortal(
-          <AnimatePresence>
+        {/* ─── Account View (full-page opaque takeover) ──── */}
+        <AnimatePresence>
+          {popoverOpen && (
             <motion.div
-              ref={popoverRef}
-              initial={{ opacity: 0, y: -6, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -6, scale: 0.97 }}
-              transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
-              className="fixed z-[9999] w-[300px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-xl shadow-black/8"
-              style={{ top: popoverPos.top, right: popoverPos.right }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 z-50 flex flex-col bg-background"
             >
-              <div className="p-5">
+              <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                <h3 className="text-[15px] font-bold text-foreground">Account</h3>
+                <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => { setPopoverOpen(false); setApiKeyEditing(false) }}>
+                  <X className="h-4 w-4" strokeWidth={1.5} />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto px-6 py-5">
                 {/* API Key section */}
                 <div>
                   <div className="flex items-center justify-between">
@@ -648,9 +630,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 </div>
               </div>
             </motion.div>
-          </AnimatePresence>,
-          document.body
-        )}
+          )}
+        </AnimatePresence>
 
         {/* ─── Steps ──────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto">
@@ -882,9 +863,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                           </span>
                         ))}
                       </div>
-                      <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-                        <span className="rounded bg-muted px-1.5 py-0.5 font-medium">{currentSeniority}</span>
-                        <span>{currentType}</span>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                        {(currentSeniority as string[]).map((s) => (
+                          <span key={s} className="rounded bg-muted px-1.5 py-0.5 font-medium">{s}</span>
+                        ))}
+                        {(currentType as string[]).map((t) => (
+                          <span key={t} className="rounded bg-muted px-1.5 py-0.5 font-medium">{t}</span>
+                        ))}
                       </div>
                     </button>
 
@@ -908,9 +893,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                               <label className="text-sm font-medium text-muted-foreground">Targeting Locations</label>
                               <Input type="text" value={currentTargeting} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], targetingLocations: e.target.value } }))} placeholder="e.g. United States, New York" className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-sm placeholder:text-muted-foreground/50 focus:border-[#3b82f6]" disabled={isRunning} />
                             </div>
-                            {/* Work Model chips */}
+                            {/* Remote chips */}
                             <div>
-                              <label className="text-sm font-medium text-muted-foreground">Work Model</label>
+                              <label className="text-sm font-medium text-muted-foreground">Remote</label>
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {LOCATION_OPTIONS.map((loc) => (
                                   <button key={loc} type="button" className={cn("rounded-md border px-2.5 py-1 text-sm font-medium transition-all", currentLocation.includes(loc) ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => toggleLocationChip(profile.id, loc)} disabled={isRunning}>
@@ -919,26 +904,46 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                 ))}
                               </div>
                             </div>
-                            {/* Seniority chips */}
+                            {/* Experience level chips */}
                             <div>
-                              <label className="text-sm font-medium text-muted-foreground">Seniority</label>
+                              <label className="text-sm font-medium text-muted-foreground">Experience level</label>
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {SENIORITY_OPTIONS.map((s) => (
-                                  <button key={s} type="button" className={cn("rounded-md border px-2.5 py-1 text-sm font-medium transition-all", currentSeniority === s ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], seniority: s } }))} disabled={isRunning}>
-                                    {s}
-                                  </button>
-                                ))}
+                                {SENIORITY_OPTIONS.map((s) => {
+                                  const arr = currentSeniority as string[]
+                                  const active = arr.includes(s)
+                                  return (
+                                    <button key={s} type="button" className={cn("rounded-md border px-2.5 py-1 text-sm font-medium transition-all", active ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => {
+                                      setAiProfileOverrides((prev) => {
+                                        const cur = prev[profile.id]?.seniority || [AI_PROFILES.find((p) => p.id === profile.id)?.seniority || "Senior"]
+                                        const updated = cur.includes(s) ? cur.filter((x) => x !== s) : [...cur, s]
+                                        return { ...prev, [profile.id]: { ...prev[profile.id], seniority: updated.length ? updated : [s] } }
+                                      })
+                                    }} disabled={isRunning}>
+                                      {s}
+                                    </button>
+                                  )
+                                })}
                               </div>
                             </div>
                             {/* Job Type chips */}
                             <div>
                               <label className="text-sm font-medium text-muted-foreground">Job Type</label>
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
-                                {JOB_TYPE_OPTIONS.map((t) => (
-                                  <button key={t} type="button" className={cn("rounded-md border px-2.5 py-1 text-sm font-medium transition-all", currentType === t ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], type: t } }))} disabled={isRunning}>
-                                    {t}
-                                  </button>
-                                ))}
+                                {JOB_TYPE_OPTIONS.map((t) => {
+                                  const arr = currentType as string[]
+                                  const active = arr.includes(t)
+                                  return (
+                                    <button key={t} type="button" className={cn("rounded-md border px-2.5 py-1 text-sm font-medium transition-all", active ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => {
+                                      setAiProfileOverrides((prev) => {
+                                        const cur = prev[profile.id]?.type || [AI_PROFILES.find((p) => p.id === profile.id)?.type || "Full-time"]
+                                        const updated = cur.includes(t) ? cur.filter((x) => x !== t) : [...cur, t]
+                                        return { ...prev, [profile.id]: { ...prev[profile.id], type: updated.length ? updated : [t] } }
+                                      })
+                                    }} disabled={isRunning}>
+                                      {t}
+                                    </button>
+                                  )
+                                })}
                               </div>
                             </div>
                           </div>
@@ -972,7 +977,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   onClick={handleStartApplying}
                   disabled={!selectedProfile}
                 >
-                  Start Applying
+                  Apply to selected role
                 </button>
                 <button
                   type="button"
@@ -1022,10 +1027,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <button
                 type="button"
                 className={cn(
-                  "flex h-11 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
+                  "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
                   runState === "idle"
-                    ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
-                    : "cursor-not-allowed bg-muted text-muted-foreground"
+                    ? "border-foreground bg-background text-foreground hover:bg-muted"
+                    : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
                 )}
                 onClick={runState === "idle" ? handleApplyAll : undefined}
                 disabled={runState !== "idle"}
