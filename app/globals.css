@@ -3,83 +3,83 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Y.EAA Control Plane - Industrial Minimal */
-/* Canvas: Pure White | Structure: Grays | Focus: PMS 280 C (#002D72) */
+/* Y.EAA Control Plane - Refined Elegance */
+/* Canvas: Warm White | Borders: Slate | Accent: Refined Blue */
 
 :root {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
+  --background: #fcfcfd;
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: #0a0a0a;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
-  --primary: #ADD8E6;
-  --primary-foreground: #0f172a;
-  --secondary: #fafafa;
-  --secondary-foreground: #0a0a0a;
-  --muted: #fafafa;
+  --popover-foreground: #0f172a;
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --secondary: #f8fafc;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --accent: #ADD8E6;
-  --accent-foreground: #0f172a;
+  --accent: #eff6ff;
+  --accent-foreground: #1e40af;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
-  --input: #fafafa;
-  --ring: #ADD8E6;
-  --chart-1: #ADD8E6;
+  --input: #f8fafc;
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
   --chart-2: #1e3a5f;
-  --chart-3: #4a5568;
-  --chart-4: #737373;
-  --chart-5: #a3a3a3;
-  --radius: 0.25rem; /* 4px - sharp/slightly rounded corners */
+  --chart-3: #475569;
+  --chart-4: #94a3b8;
+  --chart-5: #cbd5e1;
+  --radius: 0.5rem;
   --sidebar: #ffffff;
-  --sidebar-foreground: #0a0a0a;
-  --sidebar-primary: #ADD8E6;
-  --sidebar-primary-foreground: #0f172a;
-  --sidebar-accent: #fafafa;
-  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #1d4ed8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f8fafc;
+  --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #ADD8E6;
+  --sidebar-ring: #3b82f6;
   --success: #16a34a;
   --success-foreground: #ffffff;
   --warning: #ca8a04;
   --warning-foreground: #0a0a0a;
 }
 
-/* Dark mode inherits light mode - Y.EAA is light-only for industrial clarity */
+/* Light-only product */
 .dark {
-  --background: #ffffff;
-  --foreground: #0a0a0a;
+  --background: #fcfcfd;
+  --foreground: #0f172a;
   --card: #ffffff;
-  --card-foreground: #0a0a0a;
+  --card-foreground: #0f172a;
   --popover: #ffffff;
-  --popover-foreground: #0a0a0a;
-  --primary: #ADD8E6;
-  --primary-foreground: #0f172a;
-  --secondary: #fafafa;
-  --secondary-foreground: #0a0a0a;
-  --muted: #fafafa;
+  --popover-foreground: #0f172a;
+  --primary: #1d4ed8;
+  --primary-foreground: #ffffff;
+  --secondary: #f8fafc;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
   --muted-foreground: #64748b;
-  --accent: #ADD8E6;
-  --accent-foreground: #0f172a;
+  --accent: #eff6ff;
+  --accent-foreground: #1e40af;
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
   --border: #e2e8f0;
-  --input: #fafafa;
-  --ring: #ADD8E6;
-  --chart-1: #ADD8E6;
+  --input: #f8fafc;
+  --ring: #3b82f6;
+  --chart-1: #3b82f6;
   --chart-2: #1e3a5f;
-  --chart-3: #4a5568;
-  --chart-4: #737373;
-  --chart-5: #a3a3a3;
+  --chart-3: #475569;
+  --chart-4: #94a3b8;
+  --chart-5: #cbd5e1;
   --sidebar: #ffffff;
-  --sidebar-foreground: #0a0a0a;
-  --sidebar-primary: #ADD8E6;
-  --sidebar-primary-foreground: #0f172a;
-  --sidebar-accent: #fafafa;
-  --sidebar-accent-foreground: #0a0a0a;
+  --sidebar-foreground: #0f172a;
+  --sidebar-primary: #1d4ed8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f8fafc;
+  --sidebar-accent-foreground: #0f172a;
   --sidebar-border: #e2e8f0;
-  --sidebar-ring: #ADD8E6;
+  --sidebar-ring: #3b82f6;
   --success: #16a34a;
   --success-foreground: #ffffff;
   --warning: #ca8a04;
@@ -140,12 +140,12 @@
     @apply bg-background text-foreground;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.01em;
+    letter-spacing: -0.011em;
   }
-  h1, h2, h3 {
-    letter-spacing: -0.03em;
+  h1, h2, h3, h4 {
+    letter-spacing: -0.025em;
   }
   small, .caption {
-    letter-spacing: -0.005em;
+    letter-spacing: -0.003em;
   }
 }

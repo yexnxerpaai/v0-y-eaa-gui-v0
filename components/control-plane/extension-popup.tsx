@@ -51,30 +51,33 @@ interface ExtensionPopupProps {
   onOpenChange: (open: boolean) => void
 }
 
-/* ─── Status Color Map ────────────────────────────────── */
+/* ─── Status Visual System ───────────────────────────── */
 
-const BORDER_COLOR: Record<StepStatus, string> = {
-  "not-started": "border-l-[#d4a017]/40",
-  "in-progress": "border-l-[#3b82f6]",
-  completed: "border-l-[#16a34a]",
+const STEP_INDICATOR: Record<StepStatus, { bg: string; ring: string; text: string; icon: string }> = {
+  "not-started": {
+    bg: "bg-[#fafafa]",
+    ring: "ring-[#e2e8f0]",
+    text: "text-[#94a3b8]",
+    icon: "text-[#cbd5e1]",
+  },
+  "in-progress": {
+    bg: "bg-[#f0f7ff]",
+    ring: "ring-[#bfdbfe]",
+    text: "text-[#1d4ed8]",
+    icon: "text-[#3b82f6]",
+  },
+  completed: {
+    bg: "bg-[#f0fdf4]",
+    ring: "ring-[#bbf7d0]",
+    text: "text-[#15803d]",
+    icon: "text-[#16a34a]",
+  },
 }
 
-const TITLE_COLOR: Record<StepStatus, string> = {
-  "not-started": "text-[#334155]",
-  "in-progress": "text-[#1e40af]",
-  completed: "text-[#16a34a]",
-}
-
-const STATUS_LABEL: Record<StepStatus, string> = {
-  "not-started": "(Not Start)",
-  "in-progress": "In progress",
-  completed: "Completed",
-}
-
-const STATUS_LABEL_COLOR: Record<StepStatus, string> = {
-  "not-started": "text-[#d4a017]",
-  "in-progress": "text-[#3b82f6]",
-  completed: "text-[#16a34a]",
+const STATUS_COPY: Record<StepStatus, string> = {
+  "not-started": "Pending",
+  "in-progress": "Active",
+  completed: "Done",
 }
 
 /* ─── Mock: Referral Code ─────────────────────────────── */
@@ -141,14 +144,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     step3: "not-started",
   })
 
-  // Step 1: Upload Resume
+  // Step 1
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [pasteModalOpen, setPasteModalOpen] = useState(false)
   const [pasteText, setPasteText] = useState("")
   const [parsingStatus, setParsingStatus] = useState<"idle" | "parsing" | "done" | "syncing">("idle")
   const [resumeName, setResumeName] = useState<string | null>(null)
 
-  // Step 2: Job Profile
+  // Step 2
   const [selectedProfile, setSelectedProfile] = useState<string | null>(null)
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null)
   const [aiProfileOverrides, setAiProfileOverrides] = useState<Record<string, {
@@ -157,19 +160,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     seniority?: string
     type?: string
   }>>({})
-  const [userProfile, setUserProfile] = useState({
-    role: "",
-    targetingLocations: "",
-    location: [] as string[],
-    seniority: "",
-    type: "",
-  })
+  const [userProfile] = useState({ role: "", targetingLocations: "", location: [] as string[], seniority: "", type: "" })
   const [profileLocked, setProfileLocked] = useState(false)
-
-  // Location chips
   const LOCATION_OPTIONS = ["Remote", "On-Site", "Hybrid"]
-
-  // 2x2 Matrix
   const [matrixCountries, setMatrixCountries] = useState<string[]>(["USA", "Japan"])
   const [matrix, setMatrix] = useState<MatrixState>({
     USA: { workAuth: "yes", sponsorship: "yes" },
@@ -177,23 +170,19 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   })
   const [addingCountry, setAddingCountry] = useState(false)
   const [newCountryName, setNewCountryName] = useState("")
-
-  // EEO
   const [eeoExpanded, setEeoExpanded] = useState(false)
 
-  // Step 3: Start Fill
+  // Step 3
   const [topPositions, setTopPositions] = useState(10)
   const [runState, setRunState] = useState<RunState>("idle")
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
   const [confirmAcknowledged, setConfirmAcknowledged] = useState(false)
 
-  // Referral
+  // Referral & toast
   const [referralCode, setReferralCode] = useState("")
   const [referralLoading, setReferralLoading] = useState(false)
   const [referralError, setReferralError] = useState<string | null>(null)
   const [appliedCodes, setAppliedCodes] = useState<string[]>([])
-
-  // Credit toast
   const [creditToast, setCreditToast] = useState<string | null>(null)
 
   const quotaIsZero = quota === 0
@@ -202,10 +191,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        balanceRef.current &&
-        !balanceRef.current.contains(e.target as Node)
+        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
+        balanceRef.current && !balanceRef.current.contains(e.target as Node)
       ) {
         setPopoverOpen(false)
       }
@@ -216,7 +203,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     }
   }, [popoverOpen])
 
-  /* ─── Credit toast helper ──────────────────────────── */
   const showCreditToast = useCallback((msg: string) => {
     setCreditToast(msg)
     setTimeout(() => setCreditToast(null), 3000)
@@ -242,10 +228,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      simulateParsing(file.name)
-    }
-    // Reset input so the same file can be re-selected
+    if (file) simulateParsing(file.name)
     e.target.value = ""
   }, [simulateParsing])
 
@@ -282,28 +265,19 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     (country: string, row: "workAuth" | "sponsorship") => {
       setMatrix((prev) => ({
         ...prev,
-        [country]: {
-          ...prev[country],
-          [row]: prev[country][row] === "yes" ? "no" : "yes",
-        },
+        [country]: { ...prev[country], [row]: prev[country][row] === "yes" ? "no" : "yes" },
       }))
-    },
-    []
+    }, []
   )
 
   const addCountryToMatrix = useCallback(() => {
     const name = newCountryName.trim()
     if (!name || matrixCountries.includes(name)) return
     setMatrixCountries((prev) => [...prev, name])
-    setMatrix((prev) => ({
-      ...prev,
-      [name]: { workAuth: "yes", sponsorship: "yes" },
-    }))
+    setMatrix((prev) => ({ ...prev, [name]: { workAuth: "yes", sponsorship: "yes" } }))
     setNewCountryName("")
     setAddingCountry(false)
   }, [newCountryName, matrixCountries])
-
-  /* ─── Step 2: Start Applying ────────────────────────── */
 
   const handleStartApplying = useCallback(() => {
     if (!selectedProfile && !userProfile.role.trim()) return
@@ -319,7 +293,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setConfirmModalOpen(false)
     setRunState("running")
     setActiveStep(3)
-    // Redirect to LinkedIn Jobs Search
     window.open("https://www.linkedin.com/jobs/search/", "_blank")
   }, [])
 
@@ -366,24 +339,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const toggleLocationChip = useCallback(
     (profileId: string | null, loc: string) => {
       if (profileLocked) return
-      if (profileId === null) {
-        setUserProfile((prev) => ({
-          ...prev,
-          location: prev.location.includes(loc)
-            ? prev.location.filter((l) => l !== loc)
-            : [...prev.location, loc],
-        }))
-      } else {
-        // AI profile override
+      if (profileId !== null) {
         setAiProfileOverrides((prev) => {
           const current = prev[profileId]?.location || AI_PROFILES.find((p) => p.id === profileId)?.location || []
-          const updated = current.includes(loc)
-            ? current.filter((l) => l !== loc)
-            : [...current, loc]
-          return {
-            ...prev,
-            [profileId]: { ...prev[profileId], location: updated },
-          }
+          const updated = current.includes(loc) ? current.filter((l) => l !== loc) : [...current, loc]
+          return { ...prev, [profileId]: { ...prev[profileId], location: updated } }
         })
       }
     },
@@ -398,85 +358,85 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-[380px] flex-col border-l border-[#e2e8f0] bg-white p-0 sm:w-[380px]"
+        className="flex w-[400px] flex-col border-l border-border/60 bg-[#fcfcfd] p-0 shadow-2xl sm:w-[400px]"
       >
-        {/* Hidden file input for native OS file picker */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,.doc,.docx,.txt"
-          className="hidden"
-          onChange={handleFileChange}
-        />
+        {/* Hidden file input */}
+        <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={handleFileChange} />
 
-        {/* ─── Credit Deduction Toast ──────────────────── */}
+        {/* ─── Credit Toast ──────────────────────────────── */}
         <AnimatePresence>
           {creditToast && (
             <motion.div
               initial={{ y: -40, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -40, opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-x-0 top-0 z-[60] flex justify-center p-2"
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
+              className="absolute inset-x-0 top-0 z-[60] flex justify-center p-3"
             >
-              <div className="rounded border border-[#e2e8f0] bg-white px-4 py-2 text-[11px] font-medium text-[#334155] shadow-sm">
+              <div className="rounded-lg border border-border bg-background px-4 py-2 text-[11px] font-medium text-foreground shadow-lg shadow-black/5">
                 {creditToast}
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* ─── Run State Status Label ──────────────────── */}
+        {/* ─── Run State Banner ───────────────────────────── */}
         <AnimatePresence>
           {runState !== "idle" && (
             <motion.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
               className="shrink-0 overflow-hidden"
             >
-              <div className="flex items-center justify-between border-b border-[#e2e8f0] px-5 py-2.5">
-                <div className="flex items-center gap-2">
+              <div className={cn(
+                "flex items-center justify-between px-6 py-3",
+                runState === "running" && "bg-[#eff6ff] border-b border-[#bfdbfe]/60",
+                runState === "paused" && "bg-[#fefce8] border-b border-[#fde68a]/60",
+                runState === "stopped" && "bg-[#fef2f2] border-b border-[#fecaca]/60",
+                runState === "completed" && "bg-[#f0fdf4] border-b border-[#bbf7d0]/60",
+              )}>
+                <div className="flex items-center gap-2.5">
                   {runState === "running" && (
                     <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-75" />
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-60" />
                       <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3b82f6]" />
                     </span>
                   )}
-                  {runState === "paused" && <Pause className="h-3 w-3 text-[#d4a017]" strokeWidth={2} />}
+                  {runState === "paused" && <Pause className="h-3 w-3 text-[#ca8a04]" strokeWidth={2} />}
                   {runState === "stopped" && <Square className="h-3 w-3 text-[#dc2626]" strokeWidth={2} />}
                   {runState === "completed" && <Check className="h-3 w-3 text-[#16a34a]" strokeWidth={2} />}
-                  <p className="text-[12px] font-medium text-[#334155]">
-                    {runState === "running" && "Running"}
+                  <span className="text-[11px] font-semibold tracking-wide text-foreground">
+                    {runState === "running" && "Applying"}
                     {runState === "paused" && "Paused"}
                     {runState === "stopped" && "Stopped"}
                     {runState === "completed" && "Completed"}
-                  </p>
+                  </span>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5">
                   {runState === "running" && (
                     <>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] font-medium text-[#334155] transition-all hover:border-[#cbd5e1]" onClick={handlePause}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-[10px] font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm" onClick={handlePause}>
                         <Pause className="h-2.5 w-2.5" strokeWidth={1.5} /> Pause
                       </button>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-red-200 bg-transparent px-2 text-[10px] font-medium text-red-600 transition-all hover:bg-red-50" onClick={handleStop}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-red-200/80 bg-background px-2.5 text-[10px] font-medium text-red-600 transition-all hover:border-red-300 hover:shadow-sm" onClick={handleStop}>
                         <Square className="h-2.5 w-2.5" strokeWidth={1.5} /> Stop
                       </button>
                     </>
                   )}
                   {runState === "paused" && (
                     <>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-[#3b82f6]/30 bg-[#3b82f6] px-2 text-[10px] font-medium text-white transition-all hover:bg-[#2563eb]" onClick={handleResume}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md bg-[#1d4ed8] px-2.5 text-[10px] font-semibold text-white transition-all hover:bg-[#1e40af] hover:shadow-sm" onClick={handleResume}>
                         <Play className="h-2.5 w-2.5" strokeWidth={1.5} /> Resume
                       </button>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded border border-red-200 bg-transparent px-2 text-[10px] font-medium text-red-600 transition-all hover:bg-red-50" onClick={handleStop}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-red-200/80 bg-background px-2.5 text-[10px] font-medium text-red-600 transition-all hover:border-red-300" onClick={handleStop}>
                         <Square className="h-2.5 w-2.5" strokeWidth={1.5} /> Stop
                       </button>
                     </>
                   )}
                   {(runState === "stopped" || runState === "completed") && (
-                    <button type="button" className="flex h-6 items-center gap-1 rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] font-medium text-[#334155] transition-all hover:border-[#cbd5e1]" onClick={() => setRunState("idle")}>
+                    <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-[10px] font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => setRunState("idle")}>
                       <RotateCcw className="h-2.5 w-2.5" strokeWidth={1.5} /> Reset
                     </button>
                   )}
@@ -487,74 +447,74 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         </AnimatePresence>
 
         {/* ─── Header ─────────────────────────────────────── */}
-        <div className="relative shrink-0 px-5 pb-0 pt-5">
+        <div className="relative shrink-0 px-6 pb-4 pt-6">
           <SheetHeader className="space-y-0">
             <div className="flex items-center justify-between">
-              <SheetTitle
-                className="text-2xl font-bold text-[#0f172a]"
-                style={{ fontFamily: "var(--font-heading)" }}
-              >
-                Y.EAA
-              </SheetTitle>
+              <div className="flex items-baseline gap-2">
+                <SheetTitle className="text-[22px] font-bold tracking-tight text-foreground" style={{ fontFamily: "var(--font-heading)" }}>
+                  Y.EAA
+                </SheetTitle>
+                <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[9px] font-semibold tracking-widest text-[#3b82f6]">
+                  BETA
+                </span>
+              </div>
               {/* Balance pill */}
               <button
                 ref={balanceRef}
                 type="button"
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-medium transition-all",
+                  "group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-medium transition-all",
                   quotaIsZero
-                    ? "border-red-300 bg-red-50 text-red-600"
-                    : "border-[#e2e8f0] bg-transparent text-[#334155] hover:border-[#cbd5e1] hover:shadow-sm"
+                    ? "border-red-200 bg-red-50 text-red-600 hover:border-red-300"
+                    : "border-border/60 bg-background text-foreground hover:border-border hover:shadow-sm"
                 )}
                 onClick={() => setPopoverOpen(!popoverOpen)}
               >
-                <Zap className="h-3 w-3" strokeWidth={2} />
-                <span className="font-mono font-semibold">{quota}</span>
-                <span>Credits</span>
-                <span className="ml-0.5 text-[#94a3b8]">|</span>
-                <span className="font-bold text-[#64748b]">+</span>
+                <Zap className={cn("h-3 w-3", quotaIsZero ? "text-red-500" : "text-[#eab308]")} strokeWidth={2} />
+                <span className="font-mono text-[12px] font-bold tabular-nums">{quota}</span>
+                <span className="hidden text-muted-foreground sm:inline">credits</span>
+                <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">+</span>
               </button>
             </div>
           </SheetHeader>
 
-          {/* ─── Anchored Popover ─────────────────────────── */}
+          {/* Quota progress bar */}
+          <div className="mt-3.5">
+            <div className="h-[3px] w-full overflow-hidden rounded-full bg-muted">
+              <motion.div
+                className={cn("h-full rounded-full", quotaIsZero ? "bg-red-500" : "bg-gradient-to-r from-[#3b82f6] to-[#60a5fa]")}
+                initial={false}
+                animate={{ width: `${(quota / 15) * 100}%` }}
+                transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+              />
+            </div>
+          </div>
+
+          {/* ─── Popover ──────────────────────────────────── */}
           <AnimatePresence>
             {popoverOpen && (
               <motion.div
                 ref={popoverRef}
-                initial={{ opacity: 0, y: -4, scale: 0.98 }}
+                initial={{ opacity: 0, y: -6, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -4, scale: 0.98 }}
-                transition={{ duration: 0.15 }}
-                className="absolute right-5 top-full z-50 mt-2 w-[300px] rounded border border-[#e2e8f0] bg-white shadow-lg"
+                exit={{ opacity: 0, y: -6, scale: 0.97 }}
+                transition={{ duration: 0.18, ease: [0.25, 0.1, 0.25, 1] }}
+                className="absolute right-6 top-full z-50 mt-2 w-[300px] overflow-hidden rounded-xl border border-border/60 bg-background shadow-xl shadow-black/8"
               >
-                <div className="p-4">
-                  {/* Gemini API Key */}
+                <div className="p-5">
+                  {/* API Key section */}
                   <div>
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-[#16a34a]" />
-                        <p className="text-[11px] font-medium text-[#334155]">API Active</p>
+                      <div className="flex items-center gap-2.5">
+                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f0fdf4]">
+                          <span className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" />
+                        </span>
+                        <span className="text-[12px] font-semibold text-foreground">API Connected</span>
                       </div>
                       {!apiKeyEditing && (
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            className="text-[10px] text-[#3b82f6] hover:underline"
-                            onClick={() => setApiKeyEditing(true)}
-                          >
-                            Change
-                          </button>
-                          <button
-                            type="button"
-                            className="text-[10px] text-red-500 hover:underline"
-                            onClick={() => {
-                              setApiKey("")
-                              setApiKeyEditing(true)
-                            }}
-                          >
-                            Discontinue
-                          </button>
+                        <div className="flex gap-3">
+                          <button type="button" className="text-[10px] font-medium text-[#3b82f6] transition-colors hover:text-[#1d4ed8]" onClick={() => setApiKeyEditing(true)}>Change</button>
+                          <button type="button" className="text-[10px] font-medium text-red-400 transition-colors hover:text-red-600" onClick={() => { setApiKey(""); setApiKeyEditing(true) }}>Remove</button>
                         </div>
                       )}
                     </div>
@@ -564,87 +524,53 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.15 }}
+                          transition={{ duration: 0.18 }}
                           className="overflow-hidden"
                         >
-                          <div className="mt-3 space-y-2">
+                          <div className="mt-4 space-y-3">
                             <div className="relative">
-                              <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-[#94a3b8]" strokeWidth={1.5} />
-                              <Input
-                                type="password"
-                                value={apiKey}
-                                onChange={(e) => setApiKey(e.target.value)}
-                                placeholder="sk-..."
-                                className="h-8 rounded border-[#e2e8f0] bg-transparent pl-8 text-xs placeholder:text-[#94a3b8]"
-                              />
+                              <Key className="absolute left-3 top-1/2 h-3 w-3 -translate-y-1/2 text-muted-foreground" strokeWidth={1.5} />
+                              <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="h-9 rounded-lg border-border/60 bg-muted/50 pl-8 text-xs placeholder:text-muted-foreground/60 focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]/20" />
                             </div>
                             <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className={cn(
-                                  "flex h-7 flex-1 items-center justify-center rounded text-[10px] font-semibold transition-all",
-                                  apiKey.trim()
-                                    ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                                    : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
-                                )}
-                                disabled={!apiKey.trim()}
-                                onClick={() => setApiKeyEditing(false)}
-                              >
-                                Save
-                              </button>
-                              <button
-                                type="button"
-                                className="flex h-7 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[10px] font-medium text-[#64748b] hover:border-[#cbd5e1]"
-                                onClick={() => setApiKeyEditing(false)}
-                              >
-                                Cancel
-                              </button>
+                              <button type="button" className={cn("flex h-8 flex-1 items-center justify-center rounded-lg text-[11px] font-semibold transition-all", apiKey.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} disabled={!apiKey.trim()} onClick={() => setApiKeyEditing(false)}>Save</button>
+                              <button type="button" className="flex h-8 flex-1 items-center justify-center rounded-lg border border-border/60 text-[11px] font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => setApiKeyEditing(false)}>Cancel</button>
                             </div>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    <p className="mt-3 text-[10px] leading-relaxed text-[#94a3b8]">
-                      Refills to 5 daily (Max stockpile: 15)
+                    <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+                      Refills to 5 daily. Max stockpile: 15.
                     </p>
                   </div>
 
-                  {/* Referral Code */}
-                  <div className="mt-4 border-t border-[#f1f5f9] pt-4">
-                    <p className="text-[11px] font-medium text-[#334155]">Referral code</p>
-                    <div className="mt-2 flex gap-2">
+                  {/* Divider */}
+                  <div className="my-4 h-px bg-border/60" />
+
+                  {/* Referral */}
+                  <div>
+                    <p className="text-[12px] font-semibold text-foreground">Referral code</p>
+                    <div className="mt-2.5 flex gap-2">
                       <Input
                         type="text"
                         value={referralCode}
                         onChange={(e) => setReferralCode(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter" && !referralLoading) handleApplyReferral()
-                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !referralLoading) handleApplyReferral() }}
                         placeholder="YEAA-XXXX"
                         disabled={referralLoading}
-                        className="h-8 flex-1 rounded border-[#e2e8f0] bg-transparent text-xs placeholder:text-[#94a3b8]"
+                        className="h-9 flex-1 rounded-lg border-border/60 bg-muted/50 text-xs placeholder:text-muted-foreground/60 focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]/20"
                       />
                       <button
                         type="button"
-                        className={cn(
-                          "flex h-8 shrink-0 items-center justify-center rounded px-3 text-[10px] font-semibold transition-all",
-                          referralCode.trim() && !referralLoading
-                            ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                            : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
-                        )}
+                        className={cn("flex h-9 shrink-0 items-center justify-center rounded-lg px-4 text-[11px] font-semibold transition-all", referralCode.trim() && !referralLoading ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")}
                         onClick={handleApplyReferral}
                         disabled={referralLoading || !referralCode.trim()}
                       >
-                        {referralLoading ? (
-                          <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} />
-                        ) : (
-                          "Apply"
-                        )}
+                        {referralLoading ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} /> : "Redeem"}
                       </button>
                     </div>
-                    {referralError && (
-                      <p className="mt-1.5 text-[10px] text-red-500">{referralError}</p>
-                    )}
+                    {referralError && <p className="mt-2 text-[10px] text-red-500">{referralError}</p>}
                   </div>
                 </div>
               </motion.div>
@@ -652,122 +578,85 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           </AnimatePresence>
         </div>
 
-        {/* ─── Accordion Steps ───────────────────────────── */}
-        <div className="mt-4 flex-1 overflow-y-auto">
+        {/* ─── Steps ──────────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto">
 
-          {/* ─── Step 1: Upload Resume ─────────────────── */}
-          <AccordionStep
-            number={1}
-            title="Upload Resume"
-            status={steps.step1}
-            isActive={activeStep === 1}
-            onToggle={() => setActiveStep(1)}
-            canToggle={true}
-          >
-            {/* Syncing state (LinkedIn) */}
+          {/* Step 1: Upload Resume */}
+          <StepAccordion number={1} title="Upload Resume" status={steps.step1} isActive={activeStep === 1} onToggle={() => setActiveStep(1)} canToggle={true}>
             {parsingStatus === "syncing" && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0077b5]" strokeWidth={2} />
-                  <p className="text-[12px] text-[#334155]">{"Syncing LinkedIn profile\u2026"}</p>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#0077b5]" strokeWidth={2} />
+                  <span className="text-[12px] font-medium text-foreground">{"Syncing LinkedIn profile\u2026"}</span>
                 </div>
-                <div className="h-1 w-full overflow-hidden rounded-full bg-[#f1f5f9]">
-                  <motion.div
-                    className="h-full w-1/3 rounded-full bg-[#0077b5]"
-                    animate={{ x: ["0%", "200%", "0%"] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                  />
+                <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <motion.div className="h-full w-1/3 rounded-full bg-[#0077b5]" animate={{ x: ["0%", "200%", "0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} />
                 </div>
               </div>
             )}
 
-            {/* Parsing state */}
             {parsingStatus === "parsing" && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin text-[#3b82f6]" strokeWidth={2} />
-                  <p className="text-[12px] text-[#334155]">{"Parsing resume\u2026"}</p>
+              <div className="space-y-3">
+                <div className="flex items-center gap-2.5">
+                  <Loader2 className="h-4 w-4 animate-spin text-[#3b82f6]" strokeWidth={2} />
+                  <span className="text-[12px] font-medium text-foreground">{"Parsing resume\u2026"}</span>
                 </div>
-                <div className="h-1 w-full overflow-hidden rounded-full bg-[#f1f5f9]">
-                  <motion.div
-                    className="h-full w-1/3 rounded-full bg-[#3b82f6]"
-                    animate={{ x: ["0%", "200%", "0%"] }}
-                    transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                  />
+                <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+                  <motion.div className="h-full w-1/3 rounded-full bg-[#3b82f6]" animate={{ x: ["0%", "200%", "0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} />
                 </div>
               </div>
             )}
 
-            {/* Done state */}
             {parsingStatus === "done" && resumeName && (
-              <div className="flex items-center gap-2 rounded border border-[#16a34a]/20 bg-[#f0fdf4] px-3 py-2.5">
-                <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2} />
-                <div className="flex-1">
-                  <p className="text-[12px] font-medium text-[#16a34a]">Resume parsed</p>
-                  <p className="text-[10px] text-[#16a34a]/70">{resumeName}</p>
+              <div className="flex items-center gap-3 rounded-xl border border-[#bbf7d0]/60 bg-[#f0fdf4] px-4 py-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#16a34a]/10">
+                  <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2.5} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[12px] font-semibold text-[#15803d]">Resume parsed</p>
+                  <p className="truncate text-[10px] text-[#16a34a]/70">{resumeName}</p>
                 </div>
               </div>
             )}
 
-            {/* Idle state: 3-column action tiles */}
             {parsingStatus === "idle" && (
-              <div className="grid grid-cols-3 gap-2">
-                {/* Upload File - triggers native OS file picker */}
-                <button
-                  type="button"
-                  className="flex flex-col items-center justify-center gap-2 rounded border border-[#e2e8f0] bg-transparent px-2 py-5 text-center transition-all hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
-                  onClick={handleUploadFile}
-                >
-                  <Upload className="h-5 w-5 text-[#64748b]" strokeWidth={1.5} />
-                  <span className="text-[11px] font-medium text-[#334155]">Upload File</span>
+              <div className="grid grid-cols-3 gap-2.5">
+                <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-border hover:shadow-md hover:shadow-black/5" onClick={handleUploadFile}>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-colors group-hover:bg-[#f0f7ff]">
+                    <Upload className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-[#3b82f6]" strokeWidth={1.5} />
+                  </span>
+                  <span className="text-[11px] font-semibold text-foreground">Upload File</span>
                 </button>
 
-                {/* Paste Text */}
-                <button
-                  type="button"
-                  className="flex flex-col items-center justify-center gap-2 rounded border border-[#e2e8f0] bg-transparent px-2 py-5 text-center transition-all hover:border-[#cbd5e1] hover:bg-[#f8fafc]"
-                  onClick={() => setPasteModalOpen(true)}
-                >
-                  <ClipboardPaste className="h-5 w-5 text-[#64748b]" strokeWidth={1.5} />
-                  <span className="text-[11px] font-medium text-[#334155]">Paste Text</span>
+                <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-border hover:shadow-md hover:shadow-black/5" onClick={() => setPasteModalOpen(true)}>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-colors group-hover:bg-[#faf5ff]">
+                    <ClipboardPaste className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-[#8b5cf6]" strokeWidth={1.5} />
+                  </span>
+                  <span className="text-[11px] font-semibold text-foreground">Paste Text</span>
                 </button>
 
-                {/* Connect LinkedIn */}
-                <button
-                  type="button"
-                  className="flex flex-col items-center justify-center gap-2 rounded border border-[#e2e8f0] bg-transparent px-2 py-5 text-center transition-all hover:border-[#0077b5]/30 hover:bg-[#f0f9ff]"
-                  onClick={handleConnectLinkedIn}
-                >
-                  <Linkedin className="h-5 w-5 text-[#0077b5]" strokeWidth={1.5} />
-                  <span className="text-[11px] font-medium text-[#334155]">Connect LinkedIn</span>
+                <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-[#0077b5]/30 hover:shadow-md hover:shadow-black/5" onClick={handleConnectLinkedIn}>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0f9ff] transition-colors group-hover:bg-[#e0f2fe]">
+                    <Linkedin className="h-4 w-4 text-[#0077b5]" strokeWidth={1.5} />
+                  </span>
+                  <span className="text-[11px] font-semibold text-foreground">LinkedIn</span>
                 </button>
               </div>
             )}
-          </AccordionStep>
+          </StepAccordion>
 
-          {/* ─── Step 2: Job Profile ──────────────────────── */}
-          <AccordionStep
-            number={2}
-            title="Job Profile"
-            status={steps.step2}
-            isActive={activeStep === 2}
-            onToggle={() => {
-              if (steps.step2 === "in-progress" || steps.step2 === "completed") setActiveStep(2)
-            }}
-            canToggle={steps.step2 === "in-progress" || steps.step2 === "completed"}
-          >
+          {/* Step 2: Job Profile */}
+          <StepAccordion number={2} title="Job Profile" status={steps.step2} isActive={activeStep === 2} onToggle={() => { if (steps.step2 !== "not-started") setActiveStep(2) }} canToggle={steps.step2 !== "not-started"}>
             {profileLocked && (
-              <div className="mb-4 flex items-center gap-2 rounded border border-[#d4a017]/20 bg-[#fefce8] px-3 py-2">
-                <Lock className="h-3 w-3 text-[#a16207]" strokeWidth={1.5} />
-                <p className="text-[10px] text-[#a16207]">Locked for this session</p>
+              <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[#fde68a]/40 bg-[#fffbeb] px-4 py-2.5">
+                <Lock className="h-3 w-3 text-[#ca8a04]" strokeWidth={1.5} />
+                <span className="text-[11px] font-medium text-[#92400e]">Profile locked for this session</span>
               </div>
             )}
 
-            {/* A. AI Suggested Profiles */}
-            <div className="space-y-2">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94a3b8]">
-                AI Suggested
-              </p>
+            {/* AI Suggested */}
+            <div className="space-y-2.5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">AI Suggested</p>
               {AI_PROFILES.map((profile) => {
                 const isEditing = editingProfileId === profile.id
                 const isSelected = selectedProfile === profile.id
@@ -776,140 +665,64 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
                 return (
                   <div key={profile.id} className="relative">
-                    {/* Pencil edit icon - top right */}
                     {!profileLocked && isSelected && (
-                      <button
-                        type="button"
-                        className="absolute right-2 top-2 z-10 flex h-5 w-5 items-center justify-center rounded text-[#94a3b8] hover:text-[#334155]"
-                        onClick={() => setEditingProfileId(isEditing ? null : profile.id)}
-                      >
+                      <button type="button" className="absolute right-3 top-3 z-10 flex h-6 w-6 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => setEditingProfileId(isEditing ? null : profile.id)}>
                         <Pencil className="h-3 w-3" strokeWidth={1.5} />
                       </button>
                     )}
                     <button
                       type="button"
                       className={cn(
-                        "w-full rounded border p-3 text-left transition-all",
+                        "w-full rounded-xl border p-4 text-left transition-all",
                         isSelected
-                          ? "border-[#3b82f6] bg-[#eff6ff]"
-                          : "border-[#e2e8f0] bg-transparent hover:border-[#cbd5e1]",
+                          ? "border-[#3b82f6]/40 bg-[#f8fbff] shadow-sm shadow-[#3b82f6]/5"
+                          : "border-border/60 bg-background hover:border-border hover:shadow-sm hover:shadow-black/5",
                         profileLocked && "cursor-not-allowed opacity-60"
                       )}
-                      onClick={() => {
-                        if (profileLocked) return
-                        setSelectedProfile(profile.id)
-                      }}
+                      onClick={() => { if (!profileLocked) setSelectedProfile(profile.id) }}
                       disabled={profileLocked}
                     >
-                      <p className="pr-6 text-[12px] font-semibold text-[#0f172a]">{profile.role}</p>
-
-                      {/* Targeting Locations */}
-                      {!isEditing && (
-                        <p className="mt-1.5 text-[10px] text-[#64748b]">
-                          {currentTargeting}
-                        </p>
-                      )}
-
-                      {/* Work Model chips */}
-                      <div className="mt-2 flex flex-wrap gap-1.5">
+                      <p className="pr-8 text-[13px] font-semibold text-foreground">{profile.role}</p>
+                      {!isEditing && <p className="mt-1 text-[11px] text-muted-foreground">{currentTargeting}</p>}
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {LOCATION_OPTIONS.map((loc) => (
-                          <span
-                            key={loc}
-                            className={cn(
-                              "rounded border px-2 py-0.5 text-[10px]",
-                              currentLocation.includes(loc)
-                                ? "border-[#3b82f6] bg-[#dbeafe] text-[#1e40af]"
-                                : "border-[#e2e8f0] bg-[#f8fafc] text-[#94a3b8]"
-                            )}
-                          >
+                          <span key={loc} className={cn("rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors", currentLocation.includes(loc) ? "bg-[#dbeafe] text-[#1d4ed8]" : "bg-muted text-muted-foreground")}>
                             {loc}
                           </span>
                         ))}
                       </div>
-                      <div className="mt-1.5 flex items-center gap-3 text-[10px] text-[#94a3b8]">
-                        <span>{profile.seniority}</span>
+                      <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-medium">{profile.seniority}</span>
                         <span>{profile.type}</span>
                       </div>
                     </button>
 
-                    {/* Editable fields (when editing) */}
                     <AnimatePresence>
                       {isEditing && (
-                        <motion.div
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: "auto", opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.15 }}
-                          className="overflow-hidden"
-                        >
-                          <div className="space-y-2 rounded-b border border-t-0 border-[#3b82f6] bg-[#eff6ff] p-3 pt-2">
+                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
+                          <div className="space-y-3 rounded-b-xl border border-t-0 border-[#3b82f6]/40 bg-[#f8fbff] p-4 pt-3">
                             <div>
-                              <label className="text-[9px] text-[#64748b]">Targeting Locations</label>
-                              <Input
-                                type="text"
-                                value={currentTargeting}
-                                onChange={(e) =>
-                                  setAiProfileOverrides((prev) => ({
-                                    ...prev,
-                                    [profile.id]: { ...prev[profile.id], targetingLocations: e.target.value },
-                                  }))
-                                }
-                                placeholder="e.g. United States, New York"
-                                className="mt-1 h-7 rounded border-[#e2e8f0] bg-white text-[11px] placeholder:text-[#94a3b8]"
-                                disabled={profileLocked}
-                              />
+                              <label className="text-[10px] font-medium text-muted-foreground">Targeting Locations</label>
+                              <Input type="text" value={currentTargeting} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], targetingLocations: e.target.value } }))} placeholder="e.g. United States, New York" className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-[11px] placeholder:text-muted-foreground/50 focus:border-[#3b82f6]" disabled={profileLocked} />
                             </div>
                             <div>
-                              <label className="text-[9px] text-[#64748b]">Work Model</label>
-                              <div className="mt-1 flex flex-wrap gap-1.5">
+                              <label className="text-[10px] font-medium text-muted-foreground">Work Model</label>
+                              <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {LOCATION_OPTIONS.map((loc) => (
-                                  <button
-                                    key={loc}
-                                    type="button"
-                                    className={cn(
-                                      "rounded border px-2 py-0.5 text-[10px] transition-all",
-                                      currentLocation.includes(loc)
-                                        ? "border-[#3b82f6] bg-[#dbeafe] text-[#1e40af]"
-                                        : "border-[#e2e8f0] bg-white text-[#64748b] hover:border-[#cbd5e1]"
-                                    )}
-                                    onClick={() => toggleLocationChip(profile.id, loc)}
-                                    disabled={profileLocked}
-                                  >
+                                  <button key={loc} type="button" className={cn("rounded-md border px-2.5 py-1 text-[10px] font-medium transition-all", currentLocation.includes(loc) ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => toggleLocationChip(profile.id, loc)} disabled={profileLocked}>
                                     {loc}
                                   </button>
                                 ))}
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-2.5">
                               <div>
-                                <label className="text-[9px] text-[#64748b]">Seniority</label>
-                                <Input
-                                  type="text"
-                                  value={aiProfileOverrides[profile.id]?.seniority ?? profile.seniority}
-                                  onChange={(e) =>
-                                    setAiProfileOverrides((prev) => ({
-                                      ...prev,
-                                      [profile.id]: { ...prev[profile.id], seniority: e.target.value },
-                                    }))
-                                  }
-                                  className="mt-1 h-7 rounded border-[#e2e8f0] bg-white text-[10px]"
-                                  disabled={profileLocked}
-                                />
+                                <label className="text-[10px] font-medium text-muted-foreground">Seniority</label>
+                                <Input type="text" value={aiProfileOverrides[profile.id]?.seniority ?? profile.seniority} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], seniority: e.target.value } }))} className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-[10px] focus:border-[#3b82f6]" disabled={profileLocked} />
                               </div>
                               <div>
-                                <label className="text-[9px] text-[#64748b]">Job Type</label>
-                                <Input
-                                  type="text"
-                                  value={aiProfileOverrides[profile.id]?.type ?? profile.type}
-                                  onChange={(e) =>
-                                    setAiProfileOverrides((prev) => ({
-                                      ...prev,
-                                      [profile.id]: { ...prev[profile.id], type: e.target.value },
-                                    }))
-                                  }
-                                  className="mt-1 h-7 rounded border-[#e2e8f0] bg-white text-[10px]"
-                                  disabled={profileLocked}
-                                />
+                                <label className="text-[10px] font-medium text-muted-foreground">Job Type</label>
+                                <Input type="text" value={aiProfileOverrides[profile.id]?.type ?? profile.type} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], type: e.target.value } }))} className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-[10px] focus:border-[#3b82f6]" disabled={profileLocked} />
                               </div>
                             </div>
                           </div>
@@ -921,97 +734,42 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               })}
             </div>
 
-            {/* B. Create Custom Profile (Coming Soon) */}
+            {/* Create Custom (Coming Soon) */}
             <div className="mt-3">
-              <button
-                type="button"
-                className="flex h-10 w-full cursor-not-allowed items-center justify-center rounded border border-dashed border-[#e2e8f0] text-[11px] font-medium text-[#94a3b8]"
-                disabled
-              >
-                Create Custom Profile (Coming Soon)
+              <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-[11px] font-medium text-muted-foreground" disabled>
+                <Plus className="mr-1.5 h-3 w-3" strokeWidth={1.5} />
+                Custom Profile (Coming Soon)
               </button>
             </div>
 
-            {/* C. Necessary Info: 2x2 Matrix (always visible, always interactive) */}
-            <div className="mt-4 border-t border-[#f1f5f9] pt-3">
+            {/* Matrix */}
+            <div className="mt-5 border-t border-border/40 pt-4">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-[#94a3b8]">
-                  Necessary Info
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    className="flex h-5 w-5 items-center justify-center rounded border border-[#e2e8f0] text-[10px] text-[#64748b] hover:border-[#cbd5e1]"
-                    onClick={() => setAddingCountry(true)}
-                    title="Add country"
-                  >
-                    +
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-5 w-5 items-center justify-center rounded border border-[#e2e8f0] text-[10px] text-[#64748b] hover:border-[#cbd5e1]"
-                    title="More options"
-                  >
-                    {"..."}
-                  </button>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Work Authorization</p>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" className="flex h-5 w-5 items-center justify-center rounded-md border border-border/60 text-[10px] font-bold text-muted-foreground transition-colors hover:border-border hover:text-foreground" onClick={() => setAddingCountry(true)}>+</button>
                 </div>
               </div>
 
-              {/* Add country input */}
               <AnimatePresence>
                 {addingCountry && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-2 flex gap-2">
-                      <Input
-                        type="text"
-                        value={newCountryName}
-                        onChange={(e) => setNewCountryName(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") addCountryToMatrix()
-                        }}
-                        placeholder="Country name"
-                        className="h-7 flex-1 rounded border-[#e2e8f0] bg-transparent text-[10px] placeholder:text-[#94a3b8]"
-                        autoFocus
-                      />
-                      <button
-                        type="button"
-                        className="flex h-7 items-center rounded bg-[#0f172a] px-2 text-[10px] font-medium text-white hover:bg-[#1e293b]"
-                        onClick={addCountryToMatrix}
-                      >
-                        Add
-                      </button>
-                      <button
-                        type="button"
-                        className="flex h-7 items-center rounded border border-[#e2e8f0] px-2 text-[10px] text-[#64748b] hover:border-[#cbd5e1]"
-                        onClick={() => {
-                          setAddingCountry(false)
-                          setNewCountryName("")
-                        }}
-                      >
-                        Cancel
-                      </button>
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                    <div className="mt-2.5 flex gap-2">
+                      <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-muted/50 text-[10px] placeholder:text-muted-foreground/60" autoFocus />
+                      <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-[10px] font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
+                      <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-[10px] text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Matrix table */}
-              <div className="mt-3 overflow-x-auto">
+              <div className="mt-3 overflow-hidden rounded-xl border border-border/60">
                 <table className="w-full border-collapse text-[10px]">
                   <thead>
                     <tr>
-                      <th className="w-[110px] min-w-[110px] border border-[#e2e8f0] bg-[#f8fafc] px-2 py-2 text-left font-medium text-[#64748b]" />
+                      <th className="w-[110px] min-w-[110px] border-b border-r border-border/40 bg-muted/50 px-3 py-2.5 text-left font-semibold text-muted-foreground" />
                       {matrixCountries.map((country) => (
-                        <th
-                          key={country}
-                          className="border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2 text-center font-medium text-[#334155]"
-                        >
+                        <th key={country} className="border-b border-r border-border/40 bg-muted/50 px-3 py-2.5 text-center font-semibold text-foreground last:border-r-0">
                           {country}
                         </th>
                       ))}
@@ -1019,51 +777,21 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   </thead>
                   <tbody>
                     <tr>
-                      <td className="w-[110px] min-w-[110px] border border-[#e2e8f0] px-2 py-2 font-medium text-[#64748b]">
-                        Work Authorization
-                      </td>
+                      <td className="w-[110px] min-w-[110px] border-b border-r border-border/40 px-3 py-2 font-medium text-muted-foreground">Work Auth</td>
                       {matrixCountries.map((country) => (
-                        <td key={country} className="border border-[#e2e8f0] p-0 text-center">
-                          <button
-                            type="button"
-                            className={cn(
-                              "flex h-9 w-full items-center justify-center transition-colors",
-                              matrix[country]?.workAuth === "yes"
-                                ? "bg-[#f0fdf4] text-[#16a34a]"
-                                : "bg-[#fef2f2] text-[#dc2626]"
-                            )}
-                            onClick={() => toggleMatrixCell(country, "workAuth")}
-                          >
-                            {matrix[country]?.workAuth === "yes" ? (
-                              <Check className="h-4 w-4" strokeWidth={2.5} />
-                            ) : (
-                              <X className="h-4 w-4" strokeWidth={2.5} />
-                            )}
+                        <td key={country} className="border-b border-r border-border/40 p-0 text-center last:border-r-0">
+                          <button type="button" className={cn("flex h-10 w-full items-center justify-center transition-colors", matrix[country]?.workAuth === "yes" ? "bg-[#f0fdf4] text-[#16a34a] hover:bg-[#dcfce7]" : "bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]")} onClick={() => toggleMatrixCell(country, "workAuth")}>
+                            {matrix[country]?.workAuth === "yes" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <X className="h-4 w-4" strokeWidth={2.5} />}
                           </button>
                         </td>
                       ))}
                     </tr>
                     <tr>
-                      <td className="w-[110px] min-w-[110px] border border-[#e2e8f0] px-2 py-2 font-medium text-[#64748b]">
-                        Sponsorship
-                      </td>
+                      <td className="w-[110px] min-w-[110px] border-r border-border/40 px-3 py-2 font-medium text-muted-foreground">Sponsorship</td>
                       {matrixCountries.map((country) => (
-                        <td key={country} className="border border-[#e2e8f0] p-0 text-center">
-                          <button
-                            type="button"
-                            className={cn(
-                              "flex h-9 w-full items-center justify-center transition-colors",
-                              matrix[country]?.sponsorship === "yes"
-                                ? "bg-[#f0fdf4] text-[#16a34a]"
-                                : "bg-[#fef2f2] text-[#dc2626]"
-                            )}
-                            onClick={() => toggleMatrixCell(country, "sponsorship")}
-                          >
-                            {matrix[country]?.sponsorship === "yes" ? (
-                              <Check className="h-4 w-4" strokeWidth={2.5} />
-                            ) : (
-                              <X className="h-4 w-4" strokeWidth={2.5} />
-                            )}
+                        <td key={country} className="border-r border-border/40 p-0 text-center last:border-r-0">
+                          <button type="button" className={cn("flex h-10 w-full items-center justify-center transition-colors", matrix[country]?.sponsorship === "yes" ? "bg-[#f0fdf4] text-[#16a34a] hover:bg-[#dcfce7]" : "bg-[#fef2f2] text-[#dc2626] hover:bg-[#fee2e2]")} onClick={() => toggleMatrixCell(country, "sponsorship")}>
+                            {matrix[country]?.sponsorship === "yes" ? <Check className="h-4 w-4" strokeWidth={2.5} /> : <X className="h-4 w-4" strokeWidth={2.5} />}
                           </button>
                         </td>
                       ))}
@@ -1073,46 +801,24 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
             </div>
 
-            {/* D. EEO Section */}
-            <div className="mt-4 border-t border-[#f1f5f9] pt-3">
-              <button
-                type="button"
-                className="flex w-full items-center justify-between"
-                onClick={() => setEeoExpanded(!eeoExpanded)}
-              >
-                <div className="flex items-center gap-2">
-                  <Shield className="h-3 w-3 text-[#64748b]" strokeWidth={1.5} />
-                  <span className="text-[11px] font-medium text-[#334155]">
-                    EEO: Prefer not to say
-                  </span>
+            {/* EEO */}
+            <div className="mt-5 border-t border-border/40 pt-4">
+              <button type="button" className="flex w-full items-center justify-between rounded-lg px-0 py-0" onClick={() => setEeoExpanded(!eeoExpanded)}>
+                <div className="flex items-center gap-2.5">
+                  <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
+                  <span className="text-[11px] font-semibold text-foreground">EEO Responses</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">Optional</span>
                 </div>
-                <ChevronDown
-                  className={cn(
-                    "h-3 w-3 text-[#94a3b8] transition-transform",
-                    eeoExpanded && "rotate-180"
-                  )}
-                  strokeWidth={1.5}
-                />
+                <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", eeoExpanded && "rotate-180")} strokeWidth={1.5} />
               </button>
-
               <AnimatePresence>
                 {eeoExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: "auto", opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.15 }}
-                    className="overflow-hidden"
-                  >
+                  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
                     <div className="mt-3 grid grid-cols-2 gap-3">
                       {["Gender", "Race", "Veteran", "Disability"].map((field) => (
                         <div key={field}>
-                          <label className="text-[9px] text-[#64748b]">{field}</label>
-                          <select
-                            className="mt-1 h-7 w-full rounded border border-[#e2e8f0] bg-transparent px-2 text-[10px] text-[#334155] outline-none"
-                            disabled={profileLocked}
-                            defaultValue=""
-                          >
+                          <label className="text-[10px] font-medium text-muted-foreground">{field}</label>
+                          <select className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-[10px] text-foreground outline-none transition-colors focus:border-[#3b82f6]" disabled={profileLocked} defaultValue="">
                             <option value="">Select...</option>
                             <option value="prefer-not">Prefer not to say</option>
                             <option value="other">Other</option>
@@ -1125,15 +831,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </AnimatePresence>
             </div>
 
-            {/* Start Applying button */}
+            {/* Start Applying */}
             {!profileLocked && steps.step2 === "in-progress" && (
               <button
                 type="button"
                 className={cn(
-                  "mt-4 flex h-9 w-full items-center justify-center rounded text-[12px] font-semibold transition-all",
+                  "mt-5 flex h-10 w-full items-center justify-center rounded-xl text-[12px] font-bold tracking-wide transition-all",
                   selectedProfile || userProfile.role.trim()
-                    ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                    : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
+                    ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
+                    : "cursor-not-allowed bg-muted text-muted-foreground"
                 )}
                 onClick={handleStartApplying}
                 disabled={!selectedProfile && !userProfile.role.trim()}
@@ -1141,43 +847,24 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 Start Applying
               </button>
             )}
-          </AccordionStep>
+          </StepAccordion>
 
-          {/* ─── Step 3: Start Fill ──────────────────────── */}
-          <AccordionStep
-            number={3}
-            title="Start Fill"
-            status={steps.step3}
-            isActive={activeStep === 3}
-            onToggle={() => {
-              if (steps.step3 === "in-progress" || steps.step3 === "completed") setActiveStep(3)
-            }}
-            canToggle={steps.step3 === "in-progress" || steps.step3 === "completed"}
-          >
-            <div className="space-y-3">
-              {/* Numeric input: Apply the top [X] positions */}
-              <div className="flex items-center gap-2">
-                <p className="text-[11px] text-[#334155]">Apply the top</p>
-                <Input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={topPositions}
-                  onChange={(e) => setTopPositions(Math.max(1, Number.parseInt(e.target.value) || 1))}
-                  className="h-7 w-16 rounded border-[#e2e8f0] bg-transparent text-center text-[12px] font-semibold text-[#0f172a]"
-                  disabled={runState !== "idle"}
-                />
-                <p className="text-[11px] text-[#334155]">positions</p>
+          {/* Step 3: Start Fill */}
+          <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") setActiveStep(3) }} canToggle={steps.step3 !== "not-started"}>
+            <div className="space-y-4">
+              <div className="flex items-center gap-2.5">
+                <span className="text-[12px] font-medium text-foreground">Apply the top</span>
+                <Input type="number" min={1} max={100} value={topPositions} onChange={(e) => setTopPositions(Math.max(1, Number.parseInt(e.target.value) || 1))} className="h-8 w-16 rounded-lg border-border/60 bg-muted/50 text-center text-[13px] font-bold tabular-nums text-foreground" disabled={runState !== "idle"} />
+                <span className="text-[12px] font-medium text-foreground">positions</span>
               </div>
 
-              {/* Apply All */}
               <button
                 type="button"
                 className={cn(
-                  "flex h-10 w-full items-center justify-center rounded text-[12px] font-semibold transition-all",
+                  "flex h-11 w-full items-center justify-center rounded-xl text-[13px] font-bold tracking-wide transition-all",
                   runState === "idle"
-                    ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                    : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
+                    ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
+                    : "cursor-not-allowed bg-muted text-muted-foreground"
                 )}
                 onClick={runState === "idle" ? handleApplyAll : undefined}
                 disabled={runState !== "idle"}
@@ -1185,83 +872,36 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 Apply All
               </button>
 
-              {/* Recommend (Coming Soon) */}
-              <button
-                type="button"
-                className="flex h-10 w-full cursor-not-allowed items-center justify-center rounded border border-[#e2e8f0] text-[12px] font-medium text-[#94a3b8]"
-                disabled
-                title="AI analysis not available in MVP"
-              >
+              <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-[12px] font-medium text-muted-foreground" disabled>
                 Recommend (coming soon)
               </button>
             </div>
-          </AccordionStep>
+          </StepAccordion>
         </div>
 
         {/* ─── Footer ────────────────────────────────────── */}
-        <div className="shrink-0 border-t border-[#e2e8f0] px-5 py-3">
-          <p className="text-center text-[9px] text-[#94a3b8]">
+        <div className="shrink-0 border-t border-border/40 px-6 py-3.5">
+          <p className="text-center text-[9px] leading-relaxed text-muted-foreground/60">
             Y.EAA does not store credentials, cookies, or login sessions.
           </p>
         </div>
 
-        {/* ─── Paste Text Modal Overlay ────────────────────── */}
+        {/* ─── Paste Modal ───────────────────────────────── */}
         <AnimatePresence>
           {pasteModalOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/97 backdrop-blur-md">
               <div className="w-full max-w-[320px] px-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-[#0f172a]">Paste Resume</h3>
-                  <button
-                    type="button"
-                    className="flex h-6 w-6 items-center justify-center text-[#94a3b8] hover:text-[#0f172a]"
-                    onClick={() => {
-                      setPasteModalOpen(false)
-                      setPasteText("")
-                    }}
-                  >
+                  <h3 className="text-lg font-bold tracking-tight text-foreground" style={{ fontFamily: "var(--font-heading)" }}>Paste Resume</h3>
+                  <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>
                     <X className="h-4 w-4" strokeWidth={1.5} />
                   </button>
                 </div>
-
-                <div className="mt-6 space-y-3">
-                  <Textarea
-                    value={pasteText}
-                    onChange={(e) => setPasteText(e.target.value)}
-                    placeholder="Paste your resume text here"
-                    className="min-h-[160px] resize-none rounded border-[#e2e8f0] bg-transparent text-sm leading-relaxed placeholder:text-[#94a3b8] focus:border-[#3b82f6]"
-                    autoFocus
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="flex h-9 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[11px] font-medium text-[#64748b] hover:border-[#cbd5e1]"
-                      onClick={() => {
-                        setPasteModalOpen(false)
-                        setPasteText("")
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex h-9 flex-1 items-center justify-center rounded text-[11px] font-semibold transition-all",
-                        pasteText.trim()
-                          ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                          : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
-                      )}
-                      onClick={handlePasteSubmit}
-                      disabled={!pasteText.trim()}
-                    >
-                      Upload
-                    </button>
+                <div className="mt-5 space-y-3">
+                  <Textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste your resume text here" className="min-h-[180px] resize-none rounded-xl border-border/60 bg-muted/30 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]/20" autoFocus />
+                  <div className="flex gap-2.5">
+                    <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-[11px] font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>Cancel</button>
+                    <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-[11px] font-bold transition-all", pasteText.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} onClick={handlePasteSubmit} disabled={!pasteText.trim()}>Upload</button>
                   </div>
                 </div>
               </div>
@@ -1272,81 +912,37 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {/* ─── Confirmation Modal ─────────────────────────── */}
         <AnimatePresence>
           {confirmModalOpen && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white/95 backdrop-blur-sm"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/97 backdrop-blur-md">
               <div className="w-full max-w-[300px] px-6">
-                <h3 className="text-base font-semibold text-[#0f172a]">Before you continue</h3>
-                <div className="mt-4 space-y-3">
-                  {/* Target summary */}
+                <h3 className="text-[17px] font-bold tracking-tight text-foreground" style={{ fontFamily: "var(--font-heading)" }}>Before you continue</h3>
+                <div className="mt-4 space-y-3.5">
                   {selectedProfile && AI_PROFILES.find((p) => p.id === selectedProfile) && (
-                    <div className="rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
-                      <p className="text-[10px] text-[#64748b]">Target position</p>
-                      <p className="mt-0.5 text-[12px] font-medium text-[#0f172a]">
-                        {AI_PROFILES.find((p) => p.id === selectedProfile)?.role}
-                      </p>
+                    <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+                      <p className="text-[10px] font-medium text-muted-foreground">Target position</p>
+                      <p className="mt-0.5 text-[13px] font-semibold text-foreground">{AI_PROFILES.find((p) => p.id === selectedProfile)?.role}</p>
                     </div>
                   )}
-                  {selectedProfile === "user" && userProfile.role && (
-                    <div className="rounded border border-[#e2e8f0] bg-[#f8fafc] px-3 py-2">
-                      <p className="text-[10px] text-[#64748b]">Target position</p>
-                      <p className="mt-0.5 text-[12px] font-medium text-[#0f172a]">
-                        {userProfile.role}
-                      </p>
-                    </div>
-                  )}
-                  <p className="text-[12px] leading-relaxed text-[#64748b]">
+                  <p className="text-[12px] leading-relaxed text-muted-foreground">
                     Y.EAA will automate job applications on your behalf. By proceeding, you acknowledge:
                   </p>
-                  <ul className="space-y-2 text-[11px] leading-relaxed text-[#64748b]">
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1 block h-1 w-1 shrink-0 rounded-full bg-[#94a3b8]" />
+                  <ul className="space-y-2 text-[11px] leading-relaxed text-muted-foreground">
+                    <li className="flex items-start gap-2.5">
+                      <span className="mt-1.5 block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
                       You are responsible for all submissions made.
                     </li>
-                    <li className="flex items-start gap-2">
-                      <span className="mt-1 block h-1 w-1 shrink-0 rounded-full bg-[#94a3b8]" />
+                    <li className="flex items-start gap-2.5">
+                      <span className="mt-1.5 block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
                       Platform behavior may change at any time.
                     </li>
                   </ul>
-                  {/* I understand checkbox */}
-                  <label className="flex cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={confirmAcknowledged}
-                      onChange={(e) => setConfirmAcknowledged(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-[#e2e8f0] text-[#0f172a] accent-[#0f172a]"
-                    />
-                    <span className="text-[11px] font-medium text-[#334155]">I understand</span>
+                  <label className="flex cursor-pointer items-center gap-2.5">
+                    <input type="checkbox" checked={confirmAcknowledged} onChange={(e) => setConfirmAcknowledged(e.target.checked)} className="h-4 w-4 rounded border-border accent-foreground" />
+                    <span className="text-[12px] font-semibold text-foreground">I understand</span>
                   </label>
                 </div>
-                <div className="mt-6 flex gap-3">
-                  <button
-                    type="button"
-                    className="flex h-9 flex-1 items-center justify-center rounded border border-[#e2e8f0] text-[11px] font-medium text-[#64748b] transition-all hover:border-[#cbd5e1]"
-                    onClick={() => {
-                      setConfirmModalOpen(false)
-                      setConfirmAcknowledged(false)
-                    }}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex h-9 flex-1 items-center justify-center rounded text-[11px] font-semibold transition-all",
-                      confirmAcknowledged
-                        ? "bg-[#0f172a] text-white hover:bg-[#1e293b]"
-                        : "cursor-not-allowed bg-[#f1f5f9] text-[#94a3b8]"
-                    )}
-                    onClick={handleConfirmProceed}
-                    disabled={!confirmAcknowledged}
-                  >
-                    Proceed
-                  </button>
+                <div className="mt-6 flex gap-2.5">
+                  <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-[11px] font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setConfirmModalOpen(false); setConfirmAcknowledged(false) }}>Cancel</button>
+                  <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-[11px] font-bold transition-all", confirmAcknowledged ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} onClick={handleConfirmProceed} disabled={!confirmAcknowledged}>Proceed</button>
                 </div>
               </div>
             </motion.div>
@@ -1357,9 +953,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   )
 }
 
-/* ─── Accordion Step Component ────────────────────────── */
+/* ─── Step Accordion ──────────────────────────────────── */
 
-function AccordionStep({
+function StepAccordion({
   number,
   title,
   status,
@@ -1376,42 +972,50 @@ function AccordionStep({
   canToggle: boolean
   children: React.ReactNode
 }) {
+  const indicator = STEP_INDICATOR[status]
+
   return (
-    <div className={cn("border-b border-[#e2e8f0] border-l-4", BORDER_COLOR[status])}>
-      {/* Step header */}
+    <div className="border-b border-border/40">
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between px-5 py-3.5 text-left transition-colors hover:bg-[#f8fafc]",
-          !canToggle && "cursor-default hover:bg-transparent"
+          "flex w-full items-center justify-between px-6 py-4 text-left transition-colors",
+          canToggle ? "hover:bg-muted/50" : "cursor-default"
         )}
         onClick={onToggle}
         disabled={!canToggle}
       >
-        <div className="flex items-center gap-3">
-          <span className="font-mono text-[10px] font-bold text-[#94a3b8]">{number}</span>
-          <span className={cn("text-[13px] font-semibold", TITLE_COLOR[status])}>{title}</span>
+        <div className="flex items-center gap-3.5">
+          {/* Step number indicator */}
+          <span className={cn(
+            "flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-bold ring-1 transition-colors",
+            indicator.bg, indicator.ring, indicator.text,
+            status === "completed" && "ring-0"
+          )}>
+            {status === "completed" ? <Check className="h-3 w-3" strokeWidth={3} /> : number}
+          </span>
+          <span className={cn(
+            "text-[13px] font-semibold transition-colors",
+            status === "not-started" ? "text-muted-foreground" : "text-foreground"
+          )}>
+            {title}
+          </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className={cn("text-[10px]", STATUS_LABEL_COLOR[status])}>
-            {STATUS_LABEL[status]}
+          <span className={cn(
+            "rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest",
+            status === "not-started" && "bg-muted text-muted-foreground",
+            status === "in-progress" && "bg-[#eff6ff] text-[#1d4ed8]",
+            status === "completed" && "bg-[#f0fdf4] text-[#15803d]",
+          )}>
+            {STATUS_COPY[status]}
           </span>
-          {status === "completed" && (
-            <Check className="h-3 w-3 text-[#16a34a]" strokeWidth={2} />
-          )}
-          {(status === "in-progress" || (canToggle && status !== "completed")) && (
-            <ChevronDown
-              className={cn(
-                "h-3 w-3 text-[#94a3b8] transition-transform",
-                isActive && "rotate-180"
-              )}
-              strokeWidth={1.5}
-            />
+          {canToggle && status !== "completed" && (
+            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isActive && "rotate-180")} strokeWidth={1.5} />
           )}
         </div>
       </button>
 
-      {/* Step content */}
       <AnimatePresence>
         {isActive && (
           <motion.div
@@ -1421,9 +1025,7 @@ function AccordionStep({
             transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-5 pb-5 pt-1">
-              {children}
-            </div>
+            <div className="px-6 pb-6 pt-1">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
