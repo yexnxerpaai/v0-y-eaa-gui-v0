@@ -656,7 +656,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
             {/* AI Suggested */}
             <div className="space-y-2.5">
-              <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">AI Suggested</p>
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">AI Suggested</p>
               {AI_PROFILES.map((profile) => {
                 const isEditing = editingProfileId === profile.id
                 const isSelected = selectedProfile === profile.id
@@ -745,7 +745,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             {/* Matrix */}
             <div className="mt-6 border-t border-border pt-5">
               <div className="flex items-center justify-between">
-                <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Work Authorization</p>
+                <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Work Authorization</p>
                 <div className="flex items-center gap-1.5">
                   <button type="button" className="flex h-5 w-5 items-center justify-center rounded-md border border-border/60 text-sm font-bold text-muted-foreground transition-colors hover:border-border hover:text-foreground" onClick={() => setAddingCountry(true)}>+</button>
                 </div>
@@ -806,8 +806,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <button type="button" className="flex w-full items-center justify-between rounded-lg px-0 py-0" onClick={() => setEeoExpanded(!eeoExpanded)}>
                 <div className="flex items-center gap-2.5">
                   <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-                  <span className="text-sm font-semibold text-foreground">EEO Responses</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-sm font-medium text-muted-foreground">Optional</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-foreground">EEO Responses</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Optional</span>
                 </div>
                 <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", eeoExpanded && "rotate-180")} strokeWidth={1.5} />
               </button>
@@ -836,7 +836,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <button
                 type="button"
                 className={cn(
-                  "mt-5 flex h-10 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
+                  "mt-7 flex h-11 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
                   selectedProfile || userProfile.role.trim()
                     ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
                     : "cursor-not-allowed bg-muted text-muted-foreground"
@@ -988,14 +988,14 @@ function StepAccordion({
         <div className="flex items-center gap-3.5">
           {/* Step number indicator */}
           <span className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-lg text-sm font-bold ring-1 transition-colors",
+            "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ring-1 transition-colors",
             indicator.bg, indicator.ring, indicator.text,
             status === "completed" && "ring-0"
           )}>
-            {status === "completed" ? <Check className="h-3 w-3" strokeWidth={3} /> : number}
+            {status === "completed" ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : number}
           </span>
           <span className={cn(
-            "text-sm font-semibold transition-colors",
+            "text-[15px] font-bold transition-colors",
             status === "not-started" ? "text-muted-foreground" : "text-foreground"
           )}>
             {title}
@@ -1003,7 +1003,7 @@ function StepAccordion({
         </div>
         <div className="flex items-center gap-2">
           <span className={cn(
-            "rounded-md px-2 py-0.5 text-sm font-bold uppercase tracking-widest",
+            "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest",
             status === "not-started" && "bg-muted text-muted-foreground",
             status === "in-progress" && "bg-[#eff6ff] text-[#1d4ed8]",
             status === "completed" && "bg-[#f0fdf4] text-[#15803d]",
