@@ -1,11 +1,10 @@
 import React from "react"
 import type { Metadata } from 'next'
-import { Inter, Geist } from 'next/font/google'
+import { Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
 const _inter = Inter({ subsets: ["latin"] })
-const _geist = Geist({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: 'Y.EAA Control Plane',
