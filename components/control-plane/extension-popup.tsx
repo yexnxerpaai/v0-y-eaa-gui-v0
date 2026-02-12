@@ -373,7 +373,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
               className="absolute inset-x-0 top-0 z-[60] flex justify-center p-3"
             >
-              <div className="rounded-lg border border-border bg-background px-4 py-2 text-[11px] font-medium text-foreground shadow-lg shadow-black/5">
+              <div className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground shadow-lg shadow-black/5">
                 {creditToast}
               </div>
             </motion.div>
@@ -407,7 +407,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   {runState === "paused" && <Pause className="h-3 w-3 text-[#ca8a04]" strokeWidth={2} />}
                   {runState === "stopped" && <Square className="h-3 w-3 text-[#dc2626]" strokeWidth={2} />}
                   {runState === "completed" && <Check className="h-3 w-3 text-[#16a34a]" strokeWidth={2} />}
-                  <span className="text-[11px] font-semibold tracking-wide text-foreground">
+                  <span className="text-sm font-semibold tracking-wide text-foreground">
                     {runState === "running" && "Applying"}
                     {runState === "paused" && "Paused"}
                     {runState === "stopped" && "Stopped"}
@@ -417,26 +417,26 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <div className="flex gap-1.5">
                   {runState === "running" && (
                     <>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-[10px] font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm" onClick={handlePause}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm" onClick={handlePause}>
                         <Pause className="h-2.5 w-2.5" strokeWidth={1.5} /> Pause
                       </button>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-red-200/80 bg-background px-2.5 text-[10px] font-medium text-red-600 transition-all hover:border-red-300 hover:shadow-sm" onClick={handleStop}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-red-200/80 bg-background px-2.5 text-sm font-medium text-red-600 transition-all hover:border-red-300 hover:shadow-sm" onClick={handleStop}>
                         <Square className="h-2.5 w-2.5" strokeWidth={1.5} /> Stop
                       </button>
                     </>
                   )}
                   {runState === "paused" && (
                     <>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded-md bg-[#1d4ed8] px-2.5 text-[10px] font-semibold text-white transition-all hover:bg-[#1e40af] hover:shadow-sm" onClick={handleResume}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md bg-[#1d4ed8] px-2.5 text-sm font-semibold text-white transition-all hover:bg-[#1e40af] hover:shadow-sm" onClick={handleResume}>
                         <Play className="h-2.5 w-2.5" strokeWidth={1.5} /> Resume
                       </button>
-                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-red-200/80 bg-background px-2.5 text-[10px] font-medium text-red-600 transition-all hover:border-red-300" onClick={handleStop}>
+                      <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-red-200/80 bg-background px-2.5 text-sm font-medium text-red-600 transition-all hover:border-red-300" onClick={handleStop}>
                         <Square className="h-2.5 w-2.5" strokeWidth={1.5} /> Stop
                       </button>
                     </>
                   )}
                   {(runState === "stopped" || runState === "completed") && (
-                    <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-[10px] font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => setRunState("idle")}>
+                    <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => setRunState("idle")}>
                       <RotateCcw className="h-2.5 w-2.5" strokeWidth={1.5} /> Reset
                     </button>
                   )}
@@ -447,14 +447,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         </AnimatePresence>
 
         {/* ─── Header ─────────────────────────────────────── */}
-        <div className="relative shrink-0 px-6 pb-4 pt-6">
+        <div className="relative shrink-0 border-b border-border px-6 pb-5 pt-6">
           <SheetHeader className="space-y-0">
             <div className="flex items-center justify-between">
               <div className="flex items-baseline gap-2">
-                <SheetTitle className="text-[22px] font-bold tracking-tight text-foreground" style={{ fontFamily: "var(--font-heading)" }}>
+                <SheetTitle className="text-[22px] font-bold tracking-tight text-foreground">
                   Y.EAA
                 </SheetTitle>
-                <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[9px] font-semibold tracking-widest text-[#3b82f6]">
+                <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-sm font-semibold tracking-widest text-[#3b82f6]">
                   BETA
                 </span>
               </div>
@@ -463,7 +463,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 ref={balanceRef}
                 type="button"
                 className={cn(
-                  "group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-[11px] font-medium transition-all",
+                  "group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all",
                   quotaIsZero
                     ? "border-red-200 bg-red-50 text-red-600 hover:border-red-300"
                     : "border-border/60 bg-background text-foreground hover:border-border hover:shadow-sm"
@@ -471,9 +471,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 onClick={() => setPopoverOpen(!popoverOpen)}
               >
                 <Zap className={cn("h-3 w-3", quotaIsZero ? "text-red-500" : "text-[#eab308]")} strokeWidth={2} />
-                <span className="font-mono text-[12px] font-bold tabular-nums">{quota}</span>
+                <span className="font-mono text-sm font-bold tabular-nums">{quota}</span>
                 <span className="hidden text-muted-foreground sm:inline">credits</span>
-                <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted text-[10px] font-bold text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">+</span>
+                <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">+</span>
               </button>
             </div>
           </SheetHeader>
@@ -509,12 +509,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#f0fdf4]">
                           <span className="h-1.5 w-1.5 rounded-full bg-[#16a34a]" />
                         </span>
-                        <span className="text-[12px] font-semibold text-foreground">API Connected</span>
+                        <span className="text-sm font-semibold text-foreground">API Connected</span>
                       </div>
                       {!apiKeyEditing && (
                         <div className="flex gap-3">
-                          <button type="button" className="text-[10px] font-medium text-[#3b82f6] transition-colors hover:text-[#1d4ed8]" onClick={() => setApiKeyEditing(true)}>Change</button>
-                          <button type="button" className="text-[10px] font-medium text-red-400 transition-colors hover:text-red-600" onClick={() => { setApiKey(""); setApiKeyEditing(true) }}>Remove</button>
+                          <button type="button" className="text-sm font-medium text-[#3b82f6] transition-colors hover:text-[#1d4ed8]" onClick={() => setApiKeyEditing(true)}>Change</button>
+                          <button type="button" className="text-sm font-medium text-red-400 transition-colors hover:text-red-600" onClick={() => { setApiKey(""); setApiKeyEditing(true) }}>Remove</button>
                         </div>
                       )}
                     </div>
@@ -533,24 +533,24 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                               <Input type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="h-9 rounded-lg border-border/60 bg-muted/50 pl-8 text-xs placeholder:text-muted-foreground/60 focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]/20" />
                             </div>
                             <div className="flex gap-2">
-                              <button type="button" className={cn("flex h-8 flex-1 items-center justify-center rounded-lg text-[11px] font-semibold transition-all", apiKey.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} disabled={!apiKey.trim()} onClick={() => setApiKeyEditing(false)}>Save</button>
-                              <button type="button" className="flex h-8 flex-1 items-center justify-center rounded-lg border border-border/60 text-[11px] font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => setApiKeyEditing(false)}>Cancel</button>
+                              <button type="button" className={cn("flex h-8 flex-1 items-center justify-center rounded-lg text-sm font-semibold transition-all", apiKey.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} disabled={!apiKey.trim()} onClick={() => setApiKeyEditing(false)}>Save</button>
+                              <button type="button" className="flex h-8 flex-1 items-center justify-center rounded-lg border border-border/60 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => setApiKeyEditing(false)}>Cancel</button>
                             </div>
                           </div>
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+                    <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                       Refills to 5 daily. Max stockpile: 15.
                     </p>
                   </div>
 
                   {/* Divider */}
-                  <div className="my-4 h-px bg-border/60" />
+                  <div className="my-5 h-px bg-border" />
 
                   {/* Referral */}
                   <div>
-                    <p className="text-[12px] font-semibold text-foreground">Referral code</p>
+                    <p className="text-sm font-semibold text-foreground">Referral code</p>
                     <div className="mt-2.5 flex gap-2">
                       <Input
                         type="text"
@@ -563,14 +563,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       />
                       <button
                         type="button"
-                        className={cn("flex h-9 shrink-0 items-center justify-center rounded-lg px-4 text-[11px] font-semibold transition-all", referralCode.trim() && !referralLoading ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")}
+                        className={cn("flex h-9 shrink-0 items-center justify-center rounded-lg px-4 text-sm font-semibold transition-all", referralCode.trim() && !referralLoading ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")}
                         onClick={handleApplyReferral}
                         disabled={referralLoading || !referralCode.trim()}
                       >
                         {referralLoading ? <Loader2 className="h-3 w-3 animate-spin" strokeWidth={1.5} /> : "Redeem"}
                       </button>
                     </div>
-                    {referralError && <p className="mt-2 text-[10px] text-red-500">{referralError}</p>}
+                    {referralError && <p className="mt-2 text-sm text-red-500">{referralError}</p>}
                   </div>
                 </div>
               </motion.div>
@@ -587,7 +587,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <div className="space-y-3">
                 <div className="flex items-center gap-2.5">
                   <Loader2 className="h-4 w-4 animate-spin text-[#0077b5]" strokeWidth={2} />
-                  <span className="text-[12px] font-medium text-foreground">{"Syncing LinkedIn profile\u2026"}</span>
+                  <span className="text-sm font-medium text-foreground">{"Syncing LinkedIn profile\u2026"}</span>
                 </div>
                 <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
                   <motion.div className="h-full w-1/3 rounded-full bg-[#0077b5]" animate={{ x: ["0%", "200%", "0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} />
@@ -599,7 +599,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <div className="space-y-3">
                 <div className="flex items-center gap-2.5">
                   <Loader2 className="h-4 w-4 animate-spin text-[#3b82f6]" strokeWidth={2} />
-                  <span className="text-[12px] font-medium text-foreground">{"Parsing resume\u2026"}</span>
+                  <span className="text-sm font-medium text-foreground">{"Parsing resume\u2026"}</span>
                 </div>
                 <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
                   <motion.div className="h-full w-1/3 rounded-full bg-[#3b82f6]" animate={{ x: ["0%", "200%", "0%"] }} transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }} />
@@ -613,8 +613,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2.5} />
                 </span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-[12px] font-semibold text-[#15803d]">Resume parsed</p>
-                  <p className="truncate text-[10px] text-[#16a34a]/70">{resumeName}</p>
+                  <p className="text-sm font-semibold text-[#15803d]">Resume parsed</p>
+                  <p className="truncate text-sm text-[#16a34a]/70">{resumeName}</p>
                 </div>
               </div>
             )}
@@ -625,21 +625,21 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-colors group-hover:bg-[#f0f7ff]">
                     <Upload className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-[#3b82f6]" strokeWidth={1.5} />
                   </span>
-                  <span className="text-[11px] font-semibold text-foreground">Upload File</span>
+                  <span className="text-sm font-semibold text-foreground">Upload File</span>
                 </button>
 
                 <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-border hover:shadow-md hover:shadow-black/5" onClick={() => setPasteModalOpen(true)}>
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-colors group-hover:bg-[#faf5ff]">
                     <ClipboardPaste className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-[#8b5cf6]" strokeWidth={1.5} />
                   </span>
-                  <span className="text-[11px] font-semibold text-foreground">Paste Text</span>
+                  <span className="text-sm font-semibold text-foreground">Paste Text</span>
                 </button>
 
                 <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-[#0077b5]/30 hover:shadow-md hover:shadow-black/5" onClick={handleConnectLinkedIn}>
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0f9ff] transition-colors group-hover:bg-[#e0f2fe]">
                     <Linkedin className="h-4 w-4 text-[#0077b5]" strokeWidth={1.5} />
                   </span>
-                  <span className="text-[11px] font-semibold text-foreground">LinkedIn</span>
+                  <span className="text-sm font-semibold text-foreground">LinkedIn</span>
                 </button>
               </div>
             )}
@@ -650,13 +650,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             {profileLocked && (
               <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-[#fde68a]/40 bg-[#fffbeb] px-4 py-2.5">
                 <Lock className="h-3 w-3 text-[#ca8a04]" strokeWidth={1.5} />
-                <span className="text-[11px] font-medium text-[#92400e]">Profile locked for this session</span>
+                <span className="text-sm font-medium text-[#92400e]">Profile locked for this session</span>
               </div>
             )}
 
             {/* AI Suggested */}
             <div className="space-y-2.5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">AI Suggested</p>
+              <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">AI Suggested</p>
               {AI_PROFILES.map((profile) => {
                 const isEditing = editingProfileId === profile.id
                 const isSelected = selectedProfile === profile.id
@@ -682,16 +682,16 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       onClick={() => { if (!profileLocked) setSelectedProfile(profile.id) }}
                       disabled={profileLocked}
                     >
-                      <p className="pr-8 text-[13px] font-semibold text-foreground">{profile.role}</p>
-                      {!isEditing && <p className="mt-1 text-[11px] text-muted-foreground">{currentTargeting}</p>}
+                      <p className="pr-8 text-sm font-semibold text-foreground">{profile.role}</p>
+                      {!isEditing && <p className="mt-1 text-sm text-muted-foreground">{currentTargeting}</p>}
                       <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {LOCATION_OPTIONS.map((loc) => (
-                          <span key={loc} className={cn("rounded-md px-2 py-0.5 text-[10px] font-medium transition-colors", currentLocation.includes(loc) ? "bg-[#dbeafe] text-[#1d4ed8]" : "bg-muted text-muted-foreground")}>
+                          <span key={loc} className={cn("rounded-md px-2 py-0.5 text-sm font-medium transition-colors", currentLocation.includes(loc) ? "bg-[#dbeafe] text-[#1d4ed8]" : "bg-muted text-muted-foreground")}>
                             {loc}
                           </span>
                         ))}
                       </div>
-                      <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
                         <span className="rounded bg-muted px-1.5 py-0.5 font-medium">{profile.seniority}</span>
                         <span>{profile.type}</span>
                       </div>
@@ -702,14 +702,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
                           <div className="space-y-3 rounded-b-xl border border-t-0 border-[#3b82f6]/40 bg-[#f8fbff] p-4 pt-3">
                             <div>
-                              <label className="text-[10px] font-medium text-muted-foreground">Targeting Locations</label>
-                              <Input type="text" value={currentTargeting} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], targetingLocations: e.target.value } }))} placeholder="e.g. United States, New York" className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-[11px] placeholder:text-muted-foreground/50 focus:border-[#3b82f6]" disabled={profileLocked} />
+                              <label className="text-sm font-medium text-muted-foreground">Targeting Locations</label>
+                              <Input type="text" value={currentTargeting} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], targetingLocations: e.target.value } }))} placeholder="e.g. United States, New York" className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-sm placeholder:text-muted-foreground/50 focus:border-[#3b82f6]" disabled={profileLocked} />
                             </div>
                             <div>
-                              <label className="text-[10px] font-medium text-muted-foreground">Work Model</label>
+                              <label className="text-sm font-medium text-muted-foreground">Work Model</label>
                               <div className="mt-1.5 flex flex-wrap gap-1.5">
                                 {LOCATION_OPTIONS.map((loc) => (
-                                  <button key={loc} type="button" className={cn("rounded-md border px-2.5 py-1 text-[10px] font-medium transition-all", currentLocation.includes(loc) ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => toggleLocationChip(profile.id, loc)} disabled={profileLocked}>
+                                  <button key={loc} type="button" className={cn("rounded-md border px-2.5 py-1 text-sm font-medium transition-all", currentLocation.includes(loc) ? "border-[#3b82f6]/40 bg-[#dbeafe] text-[#1d4ed8]" : "border-border/60 bg-background text-muted-foreground hover:border-border")} onClick={() => toggleLocationChip(profile.id, loc)} disabled={profileLocked}>
                                     {loc}
                                   </button>
                                 ))}
@@ -717,12 +717,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                             </div>
                             <div className="grid grid-cols-2 gap-2.5">
                               <div>
-                                <label className="text-[10px] font-medium text-muted-foreground">Seniority</label>
-                                <Input type="text" value={aiProfileOverrides[profile.id]?.seniority ?? profile.seniority} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], seniority: e.target.value } }))} className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-[10px] focus:border-[#3b82f6]" disabled={profileLocked} />
+                                <label className="text-sm font-medium text-muted-foreground">Seniority</label>
+                                <Input type="text" value={aiProfileOverrides[profile.id]?.seniority ?? profile.seniority} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], seniority: e.target.value } }))} className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-sm focus:border-[#3b82f6]" disabled={profileLocked} />
                               </div>
                               <div>
-                                <label className="text-[10px] font-medium text-muted-foreground">Job Type</label>
-                                <Input type="text" value={aiProfileOverrides[profile.id]?.type ?? profile.type} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], type: e.target.value } }))} className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-[10px] focus:border-[#3b82f6]" disabled={profileLocked} />
+                                <label className="text-sm font-medium text-muted-foreground">Job Type</label>
+                                <Input type="text" value={aiProfileOverrides[profile.id]?.type ?? profile.type} onChange={(e) => setAiProfileOverrides((prev) => ({ ...prev, [profile.id]: { ...prev[profile.id], type: e.target.value } }))} className="mt-1.5 h-8 rounded-lg border-border/60 bg-background text-sm focus:border-[#3b82f6]" disabled={profileLocked} />
                               </div>
                             </div>
                           </div>
@@ -736,18 +736,18 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
             {/* Create Custom (Coming Soon) */}
             <div className="mt-3">
-              <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-[11px] font-medium text-muted-foreground" disabled>
+              <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-sm font-medium text-muted-foreground" disabled>
                 <Plus className="mr-1.5 h-3 w-3" strokeWidth={1.5} />
                 Custom Profile (Coming Soon)
               </button>
             </div>
 
             {/* Matrix */}
-            <div className="mt-5 border-t border-border/40 pt-4">
+            <div className="mt-6 border-t border-border pt-5">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Work Authorization</p>
+                <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Work Authorization</p>
                 <div className="flex items-center gap-1.5">
-                  <button type="button" className="flex h-5 w-5 items-center justify-center rounded-md border border-border/60 text-[10px] font-bold text-muted-foreground transition-colors hover:border-border hover:text-foreground" onClick={() => setAddingCountry(true)}>+</button>
+                  <button type="button" className="flex h-5 w-5 items-center justify-center rounded-md border border-border/60 text-sm font-bold text-muted-foreground transition-colors hover:border-border hover:text-foreground" onClick={() => setAddingCountry(true)}>+</button>
                 </div>
               </div>
 
@@ -755,16 +755,16 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 {addingCountry && (
                   <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
                     <div className="mt-2.5 flex gap-2">
-                      <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-muted/50 text-[10px] placeholder:text-muted-foreground/60" autoFocus />
-                      <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-[10px] font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
-                      <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-[10px] text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
+                      <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-muted/50 text-sm placeholder:text-muted-foreground/60" autoFocus />
+                      <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-sm font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
+                      <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-sm text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
                     </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
               <div className="mt-3 overflow-hidden rounded-xl border border-border/60">
-                <table className="w-full border-collapse text-[10px]">
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
                       <th className="w-[110px] min-w-[110px] border-b border-r border-border/40 bg-muted/50 px-3 py-2.5 text-left font-semibold text-muted-foreground" />
@@ -802,12 +802,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </div>
 
             {/* EEO */}
-            <div className="mt-5 border-t border-border/40 pt-4">
+            <div className="mt-6 border-t border-border pt-5">
               <button type="button" className="flex w-full items-center justify-between rounded-lg px-0 py-0" onClick={() => setEeoExpanded(!eeoExpanded)}>
                 <div className="flex items-center gap-2.5">
                   <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-                  <span className="text-[11px] font-semibold text-foreground">EEO Responses</span>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground">Optional</span>
+                  <span className="text-sm font-semibold text-foreground">EEO Responses</span>
+                  <span className="rounded bg-muted px-1.5 py-0.5 text-sm font-medium text-muted-foreground">Optional</span>
                 </div>
                 <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", eeoExpanded && "rotate-180")} strokeWidth={1.5} />
               </button>
@@ -817,8 +817,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     <div className="mt-3 grid grid-cols-2 gap-3">
                       {["Gender", "Race", "Veteran", "Disability"].map((field) => (
                         <div key={field}>
-                          <label className="text-[10px] font-medium text-muted-foreground">{field}</label>
-                          <select className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-[10px] text-foreground outline-none transition-colors focus:border-[#3b82f6]" disabled={profileLocked} defaultValue="">
+                          <label className="text-sm font-medium text-muted-foreground">{field}</label>
+                          <select className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#3b82f6]" disabled={profileLocked} defaultValue="">
                             <option value="">Select...</option>
                             <option value="prefer-not">Prefer not to say</option>
                             <option value="other">Other</option>
@@ -836,7 +836,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <button
                 type="button"
                 className={cn(
-                  "mt-5 flex h-10 w-full items-center justify-center rounded-xl text-[12px] font-bold tracking-wide transition-all",
+                  "mt-5 flex h-10 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
                   selectedProfile || userProfile.role.trim()
                     ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
                     : "cursor-not-allowed bg-muted text-muted-foreground"
@@ -853,15 +853,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") setActiveStep(3) }} canToggle={steps.step3 !== "not-started"}>
             <div className="space-y-4">
               <div className="flex items-center gap-2.5">
-                <span className="text-[12px] font-medium text-foreground">Apply the top</span>
-                <Input type="number" min={1} max={100} value={topPositions} onChange={(e) => setTopPositions(Math.max(1, Number.parseInt(e.target.value) || 1))} className="h-8 w-16 rounded-lg border-border/60 bg-muted/50 text-center text-[13px] font-bold tabular-nums text-foreground" disabled={runState !== "idle"} />
-                <span className="text-[12px] font-medium text-foreground">positions</span>
+                <span className="text-sm font-medium text-foreground">Apply the top</span>
+                <Input type="number" min={1} max={100} value={topPositions} onChange={(e) => setTopPositions(Math.max(1, Number.parseInt(e.target.value) || 1))} className="h-8 w-16 rounded-lg border-border/60 bg-muted/50 text-center text-sm font-bold tabular-nums text-foreground" disabled={runState !== "idle"} />
+                <span className="text-sm font-medium text-foreground">positions</span>
               </div>
 
               <button
                 type="button"
                 className={cn(
-                  "flex h-11 w-full items-center justify-center rounded-xl text-[13px] font-bold tracking-wide transition-all",
+                  "flex h-11 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
                   runState === "idle"
                     ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
                     : "cursor-not-allowed bg-muted text-muted-foreground"
@@ -872,7 +872,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 Apply All
               </button>
 
-              <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-[12px] font-medium text-muted-foreground" disabled>
+              <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-sm font-medium text-muted-foreground" disabled>
                 Recommend (coming soon)
               </button>
             </div>
@@ -880,8 +880,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         </div>
 
         {/* ─── Footer ────────────────────────────────────── */}
-        <div className="shrink-0 border-t border-border/40 px-6 py-3.5">
-          <p className="text-center text-[9px] leading-relaxed text-muted-foreground/60">
+        <div className="shrink-0 border-t border-border px-6 py-4">
+          <p className="text-center text-sm leading-relaxed text-muted-foreground/60">
             Y.EAA does not store credentials, cookies, or login sessions.
           </p>
         </div>
@@ -892,7 +892,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/97 backdrop-blur-md">
               <div className="w-full max-w-[320px] px-6">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold tracking-tight text-foreground" style={{ fontFamily: "var(--font-heading)" }}>Paste Resume</h3>
+                  <h3 className="text-lg font-bold tracking-tight text-foreground">Paste Resume</h3>
                   <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>
                     <X className="h-4 w-4" strokeWidth={1.5} />
                   </button>
@@ -900,8 +900,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <div className="mt-5 space-y-3">
                   <Textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste your resume text here" className="min-h-[180px] resize-none rounded-xl border-border/60 bg-muted/30 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]/20" autoFocus />
                   <div className="flex gap-2.5">
-                    <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-[11px] font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>Cancel</button>
-                    <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-[11px] font-bold transition-all", pasteText.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} onClick={handlePasteSubmit} disabled={!pasteText.trim()}>Upload</button>
+                    <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>Cancel</button>
+                    <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-sm font-bold transition-all", pasteText.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} onClick={handlePasteSubmit} disabled={!pasteText.trim()}>Upload</button>
                   </div>
                 </div>
               </div>
@@ -914,18 +914,18 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
           {confirmModalOpen && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/97 backdrop-blur-md">
               <div className="w-full max-w-[300px] px-6">
-                <h3 className="text-[17px] font-bold tracking-tight text-foreground" style={{ fontFamily: "var(--font-heading)" }}>Before you continue</h3>
+                <h3 className="text-[17px] font-bold tracking-tight text-foreground">Before you continue</h3>
                 <div className="mt-4 space-y-3.5">
                   {selectedProfile && AI_PROFILES.find((p) => p.id === selectedProfile) && (
                     <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
-                      <p className="text-[10px] font-medium text-muted-foreground">Target position</p>
-                      <p className="mt-0.5 text-[13px] font-semibold text-foreground">{AI_PROFILES.find((p) => p.id === selectedProfile)?.role}</p>
+                      <p className="text-sm font-medium text-muted-foreground">Target position</p>
+                      <p className="mt-0.5 text-sm font-semibold text-foreground">{AI_PROFILES.find((p) => p.id === selectedProfile)?.role}</p>
                     </div>
                   )}
-                  <p className="text-[12px] leading-relaxed text-muted-foreground">
+                  <p className="text-sm leading-relaxed text-muted-foreground">
                     Y.EAA will automate job applications on your behalf. By proceeding, you acknowledge:
                   </p>
-                  <ul className="space-y-2 text-[11px] leading-relaxed text-muted-foreground">
+                  <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
                     <li className="flex items-start gap-2.5">
                       <span className="mt-1.5 block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
                       You are responsible for all submissions made.
@@ -937,12 +937,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   </ul>
                   <label className="flex cursor-pointer items-center gap-2.5">
                     <input type="checkbox" checked={confirmAcknowledged} onChange={(e) => setConfirmAcknowledged(e.target.checked)} className="h-4 w-4 rounded border-border accent-foreground" />
-                    <span className="text-[12px] font-semibold text-foreground">I understand</span>
+                    <span className="text-sm font-semibold text-foreground">I understand</span>
                   </label>
                 </div>
                 <div className="mt-6 flex gap-2.5">
-                  <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-[11px] font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setConfirmModalOpen(false); setConfirmAcknowledged(false) }}>Cancel</button>
-                  <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-[11px] font-bold transition-all", confirmAcknowledged ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} onClick={handleConfirmProceed} disabled={!confirmAcknowledged}>Proceed</button>
+                  <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setConfirmModalOpen(false); setConfirmAcknowledged(false) }}>Cancel</button>
+                  <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-sm font-bold transition-all", confirmAcknowledged ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} onClick={handleConfirmProceed} disabled={!confirmAcknowledged}>Proceed</button>
                 </div>
               </div>
             </motion.div>
@@ -975,11 +975,11 @@ function StepAccordion({
   const indicator = STEP_INDICATOR[status]
 
   return (
-    <div className="border-b border-border/40">
+    <div className="border-b border-border">
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between px-6 py-4 text-left transition-colors",
+          "flex w-full items-center justify-between px-6 py-5 text-left transition-colors",
           canToggle ? "hover:bg-muted/50" : "cursor-default"
         )}
         onClick={onToggle}
@@ -988,14 +988,14 @@ function StepAccordion({
         <div className="flex items-center gap-3.5">
           {/* Step number indicator */}
           <span className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-lg text-[10px] font-bold ring-1 transition-colors",
+            "flex h-6 w-6 items-center justify-center rounded-lg text-sm font-bold ring-1 transition-colors",
             indicator.bg, indicator.ring, indicator.text,
             status === "completed" && "ring-0"
           )}>
             {status === "completed" ? <Check className="h-3 w-3" strokeWidth={3} /> : number}
           </span>
           <span className={cn(
-            "text-[13px] font-semibold transition-colors",
+            "text-sm font-semibold transition-colors",
             status === "not-started" ? "text-muted-foreground" : "text-foreground"
           )}>
             {title}
@@ -1003,7 +1003,7 @@ function StepAccordion({
         </div>
         <div className="flex items-center gap-2">
           <span className={cn(
-            "rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest",
+            "rounded-md px-2 py-0.5 text-sm font-bold uppercase tracking-widest",
             status === "not-started" && "bg-muted text-muted-foreground",
             status === "in-progress" && "bg-[#eff6ff] text-[#1d4ed8]",
             status === "completed" && "bg-[#f0fdf4] text-[#15803d]",
@@ -1025,7 +1025,7 @@ function StepAccordion({
             transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-6 pb-6 pt-1">{children}</div>
+            <div className="px-6 pb-7 pt-1">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
