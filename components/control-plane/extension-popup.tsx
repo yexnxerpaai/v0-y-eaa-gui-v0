@@ -240,8 +240,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setActiveStep(1)
     setTimeout(() => {
       setParsingStatus("done")
-      // Simulate detecting countries from resume
-      const countries = ["United States", "Japan"]
+      // Simulate detecting countries from resume (extracted from work experience/education)
+      // In production, NLP scans resume text for country names; defaults to "United States" if none found
+      const countries = ["United States"]
       setDetectedCountries(countries)
       setMatrixCountries(countries)
       setMatrix(
@@ -494,7 +495,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     </>
                   )}
                   {(runState === "stopped" || runState === "completed") && (
-                    <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => setRunState("idle")}>
+                    <button type="button" className="flex h-6 items-center gap-1 rounded-md border border-border/80 bg-background px-2.5 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => {
+                      setRunState("idle")
+                      setSteps((prev) => ({ ...prev, step3: "in-progress" }))
+                      setConfirmAcknowledged(false)
+                    }}>
                       <RotateCcw className="h-2.5 w-2.5" strokeWidth={1.5} /> Reset
                     </button>
                   )}
@@ -944,11 +949,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 </button>
                 <button
                   type="button"
-                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 text-sm font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm"
+                  className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm"
                   onClick={handleGoToLinkedIn}
                 >
-                  <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
-                  Open LinkedIn Jobs
+                  {"Start \u2192"}
                 </button>
               </div>
             )}
@@ -1044,9 +1048,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     </div>
                   )}
                   <p className="text-sm leading-relaxed text-muted-foreground">
-                    Y.EAA will automate job applications on your behalf. By proceeding, you acknowledge:
+                    Y.EAA will open each position in a separate tab, fill the Easy Apply form, and pause at the review step for you to submit or discard.
                   </p>
                   <ul className="space-y-2 text-sm leading-relaxed text-muted-foreground">
+                    <li className="flex items-start gap-2.5">
+                      <span className="mt-1.5 block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
+                      Each tab stops at the review page -- you decide what to submit.
+                    </li>
                     <li className="flex items-start gap-2.5">
                       <span className="mt-1.5 block h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
                       You are responsible for all submissions made.
