@@ -208,26 +208,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     }, 1800)
   }, [])
 
-  const handleLogout = useCallback(() => {
-    setAuthState(freeUsed ? "AUTH_REQUIRED" : "ANON_FREE")
-    setQuota(5)
-    handleStartFresh_inner()
-  }, [freeUsed, handleStartFresh_inner])
-
-  /* ─── Credit check → auto-switch to no-credits ──────── */
-
-  useEffect(() => {
-    if (authState === "AUTH_ACTIVE" && quota === 0) {
-      // If free use was consumed without login, require auth; otherwise show no-credit
-      if (!freeUsed) {
-        setFreeUsed(true)
-        setAuthState("AUTH_REQUIRED")
-      } else {
-        setAuthState("AUTH_NO_CREDIT")
-      }
-    }
-  }, [authState, quota, freeUsed])
-
   const showCreditToast = useCallback((msg: string) => {
     setCreditToast(msg)
     setTimeout(() => setCreditToast(null), 3000)
@@ -256,6 +236,26 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const handleStartFresh = useCallback(() => {
     handleStartFresh_inner()
   }, [handleStartFresh_inner])
+
+  const handleLogout = useCallback(() => {
+    setAuthState(freeUsed ? "AUTH_REQUIRED" : "ANON_FREE")
+    setQuota(5)
+    handleStartFresh_inner()
+  }, [freeUsed, handleStartFresh_inner])
+
+  /* ─── Credit check → auto-switch to no-credits ──────── */
+
+  useEffect(() => {
+    if (authState === "AUTH_ACTIVE" && quota === 0) {
+      // If free use was consumed without login, require auth; otherwise show no-credit
+      if (!freeUsed) {
+        setFreeUsed(true)
+        setAuthState("AUTH_REQUIRED")
+      } else {
+        setAuthState("AUTH_NO_CREDIT")
+      }
+    }
+  }, [authState, quota, freeUsed])
 
   /* ─── Step 1: Resume Upload ─────────────────────────── */
 
