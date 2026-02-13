@@ -32,8 +32,6 @@ import {
   Zap,
   Linkedin,
   RefreshCw,
-  ExternalLink,
-  ArrowRight,
   LogOut,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -473,27 +471,26 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground">
                 <Zap className="h-6 w-6 text-background" strokeWidth={2} />
               </div>
-              <h2 className="mt-5 text-center text-xl font-bold tracking-tight text-foreground">Apply 1 Job Free</h2>
+              <h2 className="mt-5 text-center text-xl font-bold tracking-tight text-foreground">Apply Instantly</h2>
               <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
-                No account required to try.
+                No account required to get started.
               </p>
               <button
                 type="button"
                 className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-foreground text-sm font-bold text-background transition-all hover:opacity-90"
                 onClick={handleStartFreeApplication}
               >
-                Start First Application
-                <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                {"Start Application \u2192"}
               </button>
               <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground/70">
-                Login required after first successful application.
+                Login required after your first successful application.
               </p>
             </div>
 
             {/* Footer */}
             <div className="shrink-0 border-t border-border px-6 py-4">
               <p className="text-center text-[11px] leading-relaxed text-muted-foreground/60">
-                Y.EAA does not store credentials, cookies, or login sessions.
+                Y.EAA does not store credentials or login sessions.
               </p>
             </div>
           </div>
@@ -521,7 +518,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
               <h2 className="mt-5 text-center text-xl font-bold tracking-tight text-foreground">Create Account to Continue</h2>
               <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
-                {"You\u2019ve used your free application."}
+                Sign in to continue applying.
               </p>
 
               <div className="mt-8 w-full space-y-3">
@@ -549,14 +546,17 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
 
               <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground/70">
-                We only use your account to manage credits.
+                We use your account only to manage application credits.
               </p>
+              <button type="button" className="mt-4 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground" onClick={() => setAuthState("ANON_FREE")}>
+                {"< Back"}
+              </button>
             </div>
 
             {/* Footer */}
             <div className="shrink-0 border-t border-border px-6 py-4">
               <p className="text-center text-[11px] leading-relaxed text-muted-foreground/60">
-                Y.EAA does not store credentials, cookies, or login sessions.
+                Y.EAA does not store credentials or login sessions.
               </p>
             </div>
           </div>
@@ -576,9 +576,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[10px] font-semibold tracking-widest text-[#3b82f6]">BETA</span>
                   </div>
                   <span className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600">
-                    <Zap className="h-3 w-3" strokeWidth={2} />
-                    <span className="font-mono font-bold tabular-nums">0</span>
-                    <span className="text-red-500">credits</span>
+                    Credits: <span className="font-mono font-bold tabular-nums">0</span>
                   </span>
                 </div>
               </SheetHeader>
@@ -591,7 +589,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               </div>
               <h2 className="mt-5 text-center text-xl font-bold tracking-tight text-foreground">{"You\u2019re Out of Credits"}</h2>
               <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
-                Come back tomorrow or upgrade soon.
+                Credits refresh automatically.
               </p>
 
               <button
@@ -602,9 +600,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 Start Application
               </button>
 
-              <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground/70">
-                Credits refresh daily (currently 5/day, flexible).
-              </p>
+
 
               {/* Referral code rescue */}
               <div className="mt-8 w-full">
@@ -769,10 +765,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       )}
                       onClick={() => setPopoverOpen(!popoverOpen)}
                     >
-                      <Zap className={cn("h-3 w-3", quotaIsZero ? "text-red-500" : "text-[#eab308]")} strokeWidth={2} />
+                      <span className="text-sm text-muted-foreground">Credits:</span>
                       <span className="font-mono text-sm font-bold tabular-nums">{quota}</span>
-                      <span className="text-sm text-muted-foreground">credits</span>
-                      <span className="ml-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-muted text-sm font-bold text-muted-foreground transition-colors group-hover:bg-foreground group-hover:text-background">+</span>
                     </button>
                   </div>
                 </div>
@@ -812,7 +806,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
                       <div>
                         <p className="text-sm font-semibold text-foreground">Credits remaining</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">Refills to 5 daily. Max stockpile: 15.</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">Credits refresh automatically.</p>
                       </div>
                       <span className="font-mono text-2xl font-bold tabular-nums text-foreground">{quota}</span>
                     </div>
@@ -1306,7 +1300,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             <div className="shrink-0 border-t border-border px-6 py-3">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] leading-relaxed text-muted-foreground/60">
-                  Y.EAA does not store credentials.
+                  Y.EAA does not store credentials or login sessions.
                 </p>
                 <button type="button" className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground" onClick={handleLogout}>
                   <LogOut className="h-2.5 w-2.5" strokeWidth={1.5} />
