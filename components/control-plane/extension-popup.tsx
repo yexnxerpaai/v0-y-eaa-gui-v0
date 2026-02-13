@@ -41,7 +41,7 @@ import { motion, AnimatePresence } from "framer-motion"
 
 /* ─── Types ───────────────────────────────────────────── */
 
-type AuthState = "anonymous" | "login-required" | "logged-in" | "no-credits"
+type AuthState = "ANON_FREE" | "AUTH_REQUIRED" | "AUTH_ACTIVE" | "AUTH_NO_CREDIT"
 type StepStatus = "not-started" | "in-progress" | "completed"
 
 interface StepState {
@@ -128,7 +128,7 @@ interface MatrixState {
 
 export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   /* ─── Auth State ────────────────────────────────────── */
-  const [authState, setAuthState] = useState<AuthState>("anonymous")
+  const [authState, setAuthState] = useState<AuthState>("ANON_FREE")
   const [authLoading, setAuthLoading] = useState(false)
   const [freeUsed, setFreeUsed] = useState(false)
 
@@ -193,35 +193,40 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   /* ─── Auth Handlers ─────────────────────────────────── */
 
   const handleStartFreeApplication = useCallback(() => {
-    // Simulate entering the app for the first free use
-    setFreeUsed(true)
-    setAuthState("login-required")
+    // Let user enter the main flow with 1 free credit (no login needed)
+    setQuota(1)
+    setAuthState("AUTH_ACTIVE")
   }, [])
 
-  const handleLoginWith = useCallback((provider: "google" | "linkedin") => {
+  const handleGoogleLogin = useCallback(() => {
     setAuthLoading(true)
-    // Simulate authentication delay
+    // Simulate Google authentication delay
     setTimeout(() => {
       setAuthLoading(false)
       setQuota(5)
-      setAuthState("logged-in")
+      setAuthState("AUTH_ACTIVE")
     }, 1800)
   }, [])
 
   const handleLogout = useCallback(() => {
-    setAuthState("anonymous")
-    setFreeUsed(false)
+    setAuthState(freeUsed ? "AUTH_REQUIRED" : "ANON_FREE")
     setQuota(5)
     handleStartFresh_inner()
-  }, [])
+  }, [freeUsed, handleStartFresh_inner])
 
   /* ─── Credit check → auto-switch to no-credits ──────── */
 
   useEffect(() => {
-    if (authState === "logged-in" && quota === 0) {
-      setAuthState("no-credits")
+    if (authState === "AUTH_ACTIVE" && quota === 0) {
+      // If free use was consumed without login, require auth; otherwise show no-credit
+      if (!freeUsed) {
+        setFreeUsed(true)
+        setAuthState("AUTH_REQUIRED")
+      } else {
+        setAuthState("AUTH_NO_CREDIT")
+      }
     }
-  }, [authState, quota])
+  }, [authState, quota, freeUsed])
 
   const showCreditToast = useCallback((msg: string) => {
     setCreditToast(msg)
@@ -399,7 +404,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
       setQuota((prev) => Math.min(prev + result.quotaAdded!, 15))
       setAppliedCodes((prev) => [...prev, code])
       setReferralCode("")
-      if (authState === "no-credits") setAuthState("logged-in")
+      if (authState === "AUTH_NO_CREDIT") setAuthState("AUTH_ACTIVE")
     } else {
       setReferralError(result.error || "Invalid")
       setTimeout(() => setReferralError(null), 3000)
@@ -451,7 +456,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {/* ═══════════════════════════════════════════════════════
             STATE 1: Anonymous (Not Logged In)
             ═══════════════════════════════════════════════════════ */}
-        {authState === "anonymous" && (
+        {authState === "ANON_FREE" && (
           <div className="flex flex-1 flex-col">
             {/* Header */}
             <div className="shrink-0 border-b border-border px-6 pb-5 pt-6">
@@ -497,7 +502,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {/* ═══════════════════════════════════════════════════════
             STATE 2: Login Required (After First Application)
             ═══════════════════════════════════════════════════════ */}
-        {authState === "login-required" && (
+        {authState === "AUTH_REQUIRED" && (
           <div className="flex flex-1 flex-col">
             {/* Header */}
             <div className="shrink-0 border-b border-border px-6 pb-5 pt-6">
@@ -523,7 +528,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <button
                   type="button"
                   className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background text-sm font-semibold text-foreground transition-all hover:border-border hover:shadow-md hover:shadow-black/5 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => handleLoginWith("google")}
+                  onClick={handleGoogleLogin}
                   disabled={authLoading}
                 >
                   {authLoading ? (
@@ -541,25 +546,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   )}
                 </button>
 
-                <button
-                  type="button"
-                  className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background text-sm font-semibold text-foreground transition-all hover:border-border hover:shadow-md hover:shadow-black/5 disabled:cursor-not-allowed disabled:opacity-60"
-                  onClick={() => handleLoginWith("linkedin")}
-                  disabled={authLoading}
-                >
-                  {authLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
-                  ) : (
-                    <>
-                      <Linkedin className="h-4 w-4 text-[#0077b5]" strokeWidth={1.5} />
-                      Continue with LinkedIn
-                    </>
-                  )}
-                </button>
               </div>
 
               <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground/70">
-                We do not post to LinkedIn.
+                We only use your account to manage credits.
               </p>
             </div>
 
@@ -575,7 +565,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {/* ═══════════════════════════════════════════════════════
             STATE 4: No Credits Remaining
             ═══════════════════════════════════════════════════════ */}
-        {authState === "no-credits" && (
+        {authState === "AUTH_NO_CREDIT" && (
           <div className="flex flex-1 flex-col">
             {/* Header */}
             <div className="shrink-0 border-b border-border px-6 pb-5 pt-6">
@@ -656,7 +646,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {/* ═══════════════════════════════════════════════════════
             STATE 3: Logged In With Credits (Main Application UI)
             ═══════════════════════════════════════════════════════ */}
-        {authState === "logged-in" && (
+        {authState === "AUTH_ACTIVE" && (
           <div className="flex flex-1 flex-col">
             {/* ─── Credit Toast ────────────────────────────── */}
             <AnimatePresence>
@@ -1313,10 +1303,16 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </div>
 
             {/* ─── Footer ────────────────────────────────── */}
-            <div className="shrink-0 border-t border-border px-6 py-4">
-              <p className="text-center text-[11px] leading-relaxed text-muted-foreground/60">
-                Y.EAA does not store credentials, cookies, or login sessions.
-              </p>
+            <div className="shrink-0 border-t border-border px-6 py-3">
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+                  Y.EAA does not store credentials.
+                </p>
+                <button type="button" className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground" onClick={handleLogout}>
+                  <LogOut className="h-2.5 w-2.5" strokeWidth={1.5} />
+                  Sign Out
+                </button>
+              </div>
             </div>
 
             {/* ─── Paste Modal ─────────────────────────────── */}
