@@ -126,12 +126,12 @@ interface MatrixState {
 
 export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   /* ─── Auth State ────────────────────────────────────── */
-  const [authState, setAuthState] = useState<AuthState>("ANON_FREE")
+  const [authState, setAuthState] = useState<AuthState>("AUTH_NO_CREDIT")
   const [authLoading, setAuthLoading] = useState(false)
-  const [freeUsed, setFreeUsed] = useState(false)
+  const [freeUsed, setFreeUsed] = useState(true)
 
   /* ─── Credits & Account ─────────────────────────────── */
-  const [quota, setQuota] = useState(5)
+  const [quota, setQuota] = useState(0)
   const [popoverOpen, setPopoverOpen] = useState(false)
   const balanceRef = useRef<HTMLButtonElement>(null)
 
