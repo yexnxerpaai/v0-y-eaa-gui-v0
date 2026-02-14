@@ -20,7 +20,7 @@ const sections: { id: Section; label: string }[] = [
 
 export default function ControlPlane() {
   const [systemPanelOpen, setSystemPanelOpen] = useState(false)
-  const [extensionOpen, setExtensionOpen] = useState(false)
+  const [extensionOpen, setExtensionOpen] = useState(true)
   const [activeSection, setActiveSection] = useState<Section>("job-profiles")
 
   return (
