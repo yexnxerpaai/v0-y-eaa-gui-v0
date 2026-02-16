@@ -142,28 +142,29 @@
     letter-spacing: -0.011em;
   }
   h1, h2, h3, h4 {
-    letter-spacing: -0.025em;
+    letter-spacing: -0.02em;
   }
   small, .caption {
     letter-spacing: -0.003em;
   }
-}
 
-/* Thin, elegant scrollbar for extension panel */
-.overflow-y-auto {
-  scrollbar-width: thin;
-  scrollbar-color: #e2e8f0 transparent;
-}
-.overflow-y-auto::-webkit-scrollbar {
-  width: 4px;
-}
-.overflow-y-auto::-webkit-scrollbar-track {
-  background: transparent;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb {
-  background-color: #cbd5e1;
-  border-radius: 2px;
-}
-.overflow-y-auto::-webkit-scrollbar-thumb:hover {
-  background-color: #94a3b8;
+  /* Minimalist scrollbar */
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Global transition smoothing */
+  button, a, input, select, textarea {
+    transition-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
 }
