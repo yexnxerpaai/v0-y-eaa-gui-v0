@@ -524,7 +524,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-[400px] flex-col border-l border-border/60 bg-[#fcfcfd] p-0 shadow-2xl sm:w-[400px]"
+        className="flex w-[400px] max-w-[400px] flex-col border-l border-border/60 bg-[#fcfcfd] p-0 shadow-2xl sm:max-w-[400px] sm:w-[400px]"
       >
         {/* Hidden file input */}
         <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={handleFileChange} />
@@ -965,7 +965,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </AnimatePresence>
 
             {/* ─── Steps ──────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto">
 
               {/* Step 1: Upload Resume */}
               <StepAccordion
@@ -1322,94 +1322,55 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               {/* Step 3: Start Fill */}
               <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") handleStepToggle(3) }} canToggle={steps.step3 !== "not-started"}>
                 <div className="space-y-4">
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-sm font-medium text-foreground">Apply the top</span>
-                    <Input
-                      type="number"
-                      min={1}
-                      max={100}
-                      value={topPositions}
-                      onChange={(e) => setTopPositions(Math.max(1, Number.parseInt(e.target.value) || 1))}
-                      onFocus={(e) => e.target.select()}
-                      className="h-8 w-16 rounded-lg border-border/60 bg-muted/50 text-center text-sm font-bold tabular-nums text-foreground"
-                      disabled={buttonsDisabled}
-                    />
-                    <span className="text-sm font-medium text-foreground">positions</span>
-                  </div>
-
-                  {/* Apply Recommended */}
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
-                      !buttonsDisabled && recommendCount > 0
-                        ? "border-[#16a34a] bg-[#f0fdf4] text-[#15803d] hover:bg-[#dcfce7]"
-                        : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
-                    )}
-                    onClick={handleApplyRecommended}
-                    disabled={buttonsDisabled || recommendCount === 0}
-                  >
-                    Apply Recommended ({recommendCount})
-                  </button>
-
-                  {/* Apply All (recommend + maybe) */}
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
-                      !buttonsDisabled && hasEligibleJobs
-                        ? "border-foreground bg-background text-foreground hover:bg-muted"
-                        : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
-                    )}
-                    onClick={!buttonsDisabled ? handleApplyAll : undefined}
-                    disabled={buttonsDisabled || !hasEligibleJobs}
-                  >
-                    Apply All ({recommendCount + maybeCount})
-                  </button>
-
-                  {/* Apply the Selected (manual top N) */}
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
-                      !buttonsDisabled
-                        ? "border-foreground bg-background text-foreground hover:bg-muted"
-                        : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
-                    )}
-                    onClick={!buttonsDisabled ? handleApplySelected : undefined}
-                    disabled={buttonsDisabled}
-                  >
-                    Apply the Selected (Top {topPositions})
-                  </button>
-
-                  {/* Scan trigger */}
+                  {/* Scan Jobs -- primary action, top of Step 3 */}
                   {!scoringComplete && (
                     <button
                       type="button"
                       className={cn(
-                        "flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border/60 text-sm font-semibold transition-all",
+                        "flex h-12 w-full items-center justify-center gap-2.5 rounded-xl text-sm font-bold tracking-wide transition-all",
                         scanning
-                          ? "cursor-not-allowed bg-muted text-muted-foreground"
-                          : "bg-background text-muted-foreground hover:border-border hover:text-foreground hover:shadow-sm"
+                          ? "cursor-not-allowed bg-[#3b82f6]/80 text-white"
+                          : "bg-[#3b82f6] text-white shadow-md shadow-[#3b82f6]/20 hover:bg-[#2563eb] hover:shadow-lg hover:shadow-[#3b82f6]/30"
                       )}
                       onClick={handleScanJobs}
                       disabled={scanning}
                     >
                       {scanning ? (
                         <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
                           Scanning jobs...
                         </>
                       ) : (
-                        "Scan Jobs"
+                        <>
+                          <FileText className="h-4 w-4" strokeWidth={1.5} />
+                          Scan Jobs
+                        </>
                       )}
                     </button>
                   )}
 
-                  {/* Scored Jobs List */}
+                  {/* Scored Jobs List with interleaved Apply buttons */}
                   {scoredJobs.length > 0 && (
-                    <ScoredJobsList jobs={scoredJobs} scanning={scanning} />
+                    <ScoredJobsList
+                      jobs={scoredJobs}
+                      scanning={scanning}
+                      recommendCount={recommendCount}
+                      maybeCount={maybeCount}
+                      hasEligibleJobs={hasEligibleJobs}
+                      buttonsDisabled={buttonsDisabled}
+                      onApplyRecommended={handleApplyRecommended}
+                      onApplyAll={handleApplyAll}
+                    />
                   )}
+
+                  {/* Apply the Selected (disabled placeholder) */}
+                  <button
+                    type="button"
+                    className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border-2 border-muted bg-muted text-sm font-bold tracking-wide text-muted-foreground"
+                    disabled
+                  >
+                    Apply the Selected (Top {topPositions})
+                  </button>
                 </div>
               </StepAccordion>
             </div>
@@ -1594,10 +1555,31 @@ const TIER_CONFIG = {
   no: { label: "Don't Recommend", bg: "bg-[#fafafa]", border: "border-border/40", text: "text-muted-foreground", badge: "bg-muted text-muted-foreground" },
 } as const
 
-function ScoredJobsList({ jobs, scanning }: { jobs: ScoredJob[]; scanning: boolean }) {
-  const tiers: Array<"recommend" | "maybe" | "no"> = ["recommend", "maybe", "no"]
+function ScoredJobsList({
+  jobs,
+  scanning,
+  recommendCount,
+  maybeCount,
+  hasEligibleJobs,
+  buttonsDisabled,
+  onApplyRecommended,
+  onApplyAll,
+}: {
+  jobs: ScoredJob[]
+  scanning: boolean
+  recommendCount: number
+  maybeCount: number
+  hasEligibleJobs: boolean
+  buttonsDisabled: boolean
+  onApplyRecommended: () => void
+  onApplyAll: () => void
+}) {
   const eligible = jobs.filter((j) => j.eligible)
   const ineligible = jobs.filter((j) => !j.eligible)
+
+  const recommendJobs = eligible.filter((j) => j.tier === "recommend")
+  const maybeJobs = eligible.filter((j) => j.tier === "maybe")
+  const noJobs = eligible.filter((j) => j.tier === "no")
 
   return (
     <div className="space-y-3">
@@ -1610,45 +1592,35 @@ function ScoredJobsList({ jobs, scanning }: { jobs: ScoredJob[]; scanning: boole
         </span>
       </div>
 
-      {tiers.map((tier) => {
-        const tierJobs = eligible.filter((j) => j.tier === tier)
-        if (tierJobs.length === 0) return null
-        const config = TIER_CONFIG[tier]
+      {/* RECOMMEND tier */}
+      {recommendJobs.length > 0 && (
+        <TierSection tier="recommend" jobs={recommendJobs} />
+      )}
 
-        return (
-          <div key={tier} className={cn("overflow-hidden rounded-xl border", config.border)}>
-            {/* Tier header */}
-            <div className={cn("flex items-center justify-between px-3.5 py-2", config.bg)}>
-              <span className={cn("text-xs font-bold uppercase tracking-wider", config.text)}>
-                {config.label}
-              </span>
-              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", config.badge)}>
-                {tierJobs.length}
-              </span>
-            </div>
-            {/* Job rows */}
-            <div className="divide-y divide-border/40">
-              {tierJobs.map((job) => (
-                <div key={job.id} className={cn("flex items-center gap-3 px-3.5 py-2.5 transition-colors", tier === "recommend" && "bg-[#fafffe]")}>
-                  {/* Layer indicator */}
-                  <span className={cn(
-                    "flex h-2 w-2 shrink-0 rounded-full transition-colors",
-                    job.layer === 2 ? "bg-[#16a34a]" : "bg-[#d1d5db]"
-                  )} title={job.layer === 2 ? "Fully enriched" : "Preliminary"} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-foreground">{job.title}</p>
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-xs text-muted-foreground">{job.company}</span>
-                      <span className="text-[10px] text-muted-foreground/40">{"/"}</span>
-                      <span className="truncate text-xs text-muted-foreground/70">{job.location}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )
-      })}
+      {/* Apply Recommended -- placed immediately after RECOMMEND list */}
+      <button
+        type="button"
+        className={cn(
+          "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
+          !buttonsDisabled && recommendCount > 0
+            ? "border-[#16a34a] bg-[#f0fdf4] text-[#15803d] hover:bg-[#dcfce7]"
+            : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
+        )}
+        onClick={onApplyRecommended}
+        disabled={buttonsDisabled || recommendCount === 0}
+      >
+        Apply Recommended ({recommendCount})
+      </button>
+
+      {/* MAYBE tier */}
+      {maybeJobs.length > 0 && (
+        <TierSection tier="maybe" jobs={maybeJobs} />
+      )}
+
+      {/* NO tier */}
+      {noJobs.length > 0 && (
+        <TierSection tier="no" jobs={noJobs} />
+      )}
 
       {/* Ineligible section */}
       {ineligible.length > 0 && (
@@ -1690,6 +1662,57 @@ function ScoredJobsList({ jobs, scanning }: { jobs: ScoredJob[]; scanning: boole
           <span className="text-xs text-muted-foreground">Scoring in progress...</span>
         </div>
       )}
+
+      {/* Apply All -- very bottom of the entire list */}
+      <button
+        type="button"
+        className={cn(
+          "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
+          !buttonsDisabled && hasEligibleJobs
+            ? "border-foreground bg-background text-foreground hover:bg-muted"
+            : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
+        )}
+        onClick={!buttonsDisabled ? onApplyAll : undefined}
+        disabled={buttonsDisabled || !hasEligibleJobs}
+      >
+        Apply All ({recommendCount + maybeCount})
+      </button>
+    </div>
+  )
+}
+
+/* ─── Tier Section (reusable for each tier) ────────────── */
+
+function TierSection({ tier, jobs }: { tier: "recommend" | "maybe" | "no"; jobs: ScoredJob[] }) {
+  const config = TIER_CONFIG[tier]
+  return (
+    <div className={cn("overflow-hidden rounded-xl border", config.border)}>
+      <div className={cn("flex items-center justify-between px-3.5 py-2", config.bg)}>
+        <span className={cn("text-xs font-bold uppercase tracking-wider", config.text)}>
+          {config.label}
+        </span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", config.badge)}>
+          {jobs.length}
+        </span>
+      </div>
+      <div className="divide-y divide-border/40">
+        {jobs.map((job) => (
+          <div key={job.id} className={cn("flex items-center gap-3 px-3.5 py-2.5 transition-colors", tier === "recommend" && "bg-[#fafffe]")}>
+            <span className={cn(
+              "flex h-2 w-2 shrink-0 rounded-full transition-colors",
+              job.layer === 2 ? "bg-[#16a34a]" : "bg-[#d1d5db]"
+            )} title={job.layer === 2 ? "Fully enriched" : "Preliminary"} />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-semibold text-foreground">{job.title}</p>
+              <div className="flex items-center gap-1.5">
+                <span className="truncate text-xs text-muted-foreground">{job.company}</span>
+                <span className="text-[10px] text-muted-foreground/40">{"/"}</span>
+                <span className="truncate text-xs text-muted-foreground/70">{job.location}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
