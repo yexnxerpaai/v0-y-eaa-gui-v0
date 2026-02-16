@@ -50,6 +50,31 @@ interface StepState {
 
 type RunState = "idle" | "running" | "paused" | "stopped" | "completed"
 
+interface ScoredJob {
+  id: string
+  title: string
+  company: string
+  location: string
+  tier: "recommend" | "maybe" | "no"
+  layer: 1 | 2
+  eligible: boolean
+  ineligibleReason?: string
+}
+
+/* ─── Mock: Scored Jobs ────────────────────────────────── */
+
+const MOCK_SCORED_JOBS: Omit<ScoredJob, "layer">[] = [
+  { id: "j1", title: "Senior Frontend Engineer", company: "Stripe", location: "San Francisco, CA (Remote)", tier: "recommend", eligible: true },
+  { id: "j2", title: "Staff Software Engineer", company: "Vercel", location: "Remote", tier: "recommend", eligible: true },
+  { id: "j3", title: "Frontend Developer", company: "Notion", location: "New York, NY", tier: "recommend", eligible: true },
+  { id: "j4", title: "Full Stack Engineer", company: "Linear", location: "Remote", tier: "maybe", eligible: true },
+  { id: "j5", title: "React Engineer", company: "Figma", location: "San Francisco, CA", tier: "maybe", eligible: true },
+  { id: "j6", title: "Software Engineer II", company: "Google", location: "Mountain View, CA", tier: "maybe", eligible: true },
+  { id: "j7", title: "Frontend Engineer", company: "Meta", location: "Menlo Park, CA", tier: "no", eligible: true },
+  { id: "j8", title: "Junior Developer", company: "Startup Inc", location: "Austin, TX", tier: "no", eligible: false, ineligibleReason: "Requires 0-1 years experience; overqualified" },
+  { id: "j9", title: "Backend Engineer", company: "Netflix", location: "Los Angeles, CA", tier: "no", eligible: false, ineligibleReason: "Backend-only role; no frontend overlap" },
+]
+
 interface ExtensionPopupProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -126,12 +151,12 @@ interface MatrixState {
 
 export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   /* ─── Auth State ────────────────────────────────────── */
-  const [authState, setAuthState] = useState<AuthState>("AUTH_NO_CREDIT")
+  const [authState, setAuthState] = useState<AuthState>("ANON_FREE")
   const [authLoading, setAuthLoading] = useState(false)
-  const [freeUsed, setFreeUsed] = useState(true)
+  const [freeUsed, setFreeUsed] = useState(false)
 
   /* ─── Credits & Account ─────────────────────────────── */
-  const [quota, setQuota] = useState(0)
+  const [quota, setQuota] = useState(5)
   const [popoverOpen, setPopoverOpen] = useState(false)
   const balanceRef = useRef<HTMLButtonElement>(null)
 
@@ -176,6 +201,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
   const [confirmAcknowledged, setConfirmAcknowledged] = useState(false)
 
+  // Scoring
+  const [scoredJobs, setScoredJobs] = useState<ScoredJob[]>([])
+  const [scanning, setScanning] = useState(false)
+  const [scoringComplete, setScoringComplete] = useState(false)
+
   // Referral & toast
   const [referralCode, setReferralCode] = useState("")
   const [referralLoading, setReferralLoading] = useState(false)
@@ -187,6 +217,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
   /* Derived: is the profile read-only? Only during active run */
   const isRunning = runState === "running" || runState === "paused"
+
+  /* Derived: scoring counts */
+  const recommendCount = scoredJobs.filter((j) => j.tier === "recommend" && j.eligible).length
+  const maybeCount = scoredJobs.filter((j) => j.tier === "maybe" && j.eligible).length
+  const hasEligibleJobs = scoredJobs.some((j) => j.eligible)
+  const buttonsDisabled = scanning || runState !== "idle"
 
   /* ─── Auth Handlers ─────────────────────────────────── */
 
@@ -211,6 +247,37 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setTimeout(() => setCreditToast(null), 3000)
   }, [])
 
+  /* ─── Scan & Score (simulated) ────────────────────────── */
+
+  const handleScanJobs = useCallback(() => {
+    if (scanning) return
+    setScanning(true)
+    setScoringComplete(false)
+    setScoredJobs([])
+
+    // Simulate Layer 1: progressive loading (one job every 300ms)
+    MOCK_SCORED_JOBS.forEach((job, i) => {
+      setTimeout(() => {
+        setScoredJobs((prev) => {
+          if (prev.find((j) => j.id === job.id)) return prev
+          return [...prev, { ...job, layer: 1 as const }]
+        })
+      }, (i + 1) * 300)
+    })
+
+    // Simulate Layer 2: enrich all to layer 2 after all layer 1 done
+    const layer1Duration = MOCK_SCORED_JOBS.length * 300
+    setTimeout(() => {
+      setScoredJobs((prev) => prev.map((j) => ({ ...j, layer: 2 as const })))
+    }, layer1Duration + 600)
+
+    // Mark complete
+    setTimeout(() => {
+      setScanning(false)
+      setScoringComplete(true)
+    }, layer1Duration + 800)
+  }, [scanning])
+
   /* ─── Start Fresh (inner, no auth reset) ────────────── */
 
   const handleStartFresh_inner = useCallback(() => {
@@ -229,6 +296,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setConfirmModalOpen(false)
     setConfirmAcknowledged(false)
     setTopPositions(10)
+    setScoredJobs([])
+    setScanning(false)
+    setScoringComplete(false)
   }, [])
 
   const handleStartFresh = useCallback(() => {
@@ -372,10 +442,18 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   }, [steps.step2])
 
   const handleApplyAll = useCallback(() => {
+    // Apply recommend + maybe only (excludes "no" tier)
     if (steps.step2 !== "completed") return
     setConfirmModalOpen(true)
     setConfirmAcknowledged(false)
   }, [steps.step2])
+
+  const handleApplyRecommended = useCallback(() => {
+    // Apply only "recommend" tier jobs
+    if (recommendCount === 0 || scanning) return
+    setConfirmModalOpen(true)
+    setConfirmAcknowledged(false)
+  }, [recommendCount, scanning])
 
   const handlePause = useCallback(() => setRunState("paused"), [])
   const handleResume = useCallback(() => setRunState("running"), [])
@@ -1254,44 +1332,84 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       onChange={(e) => setTopPositions(Math.max(1, Number.parseInt(e.target.value) || 1))}
                       onFocus={(e) => e.target.select()}
                       className="h-8 w-16 rounded-lg border-border/60 bg-muted/50 text-center text-sm font-bold tabular-nums text-foreground"
-                      disabled={runState !== "idle"}
+                      disabled={buttonsDisabled}
                     />
                     <span className="text-sm font-medium text-foreground">positions</span>
                   </div>
 
-                  {/* Apply the Selected */}
-                  <button
-                    type="button"
-                    className={cn(
-                      "flex h-11 w-full items-center justify-center rounded-xl border-2 border-foreground text-sm font-bold tracking-wide transition-all",
-                      runState === "idle"
-                        ? "bg-background text-foreground hover:bg-muted"
-                        : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
-                    )}
-                    onClick={runState === "idle" ? handleApplySelected : undefined}
-                    disabled={runState !== "idle"}
-                  >
-                    Apply the Selected
-                  </button>
-
-                  {/* Apply All */}
+                  {/* Apply Recommended */}
                   <button
                     type="button"
                     className={cn(
                       "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
-                      runState === "idle"
+                      !buttonsDisabled && recommendCount > 0
+                        ? "border-[#16a34a] bg-[#f0fdf4] text-[#15803d] hover:bg-[#dcfce7]"
+                        : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
+                    )}
+                    onClick={handleApplyRecommended}
+                    disabled={buttonsDisabled || recommendCount === 0}
+                  >
+                    Apply Recommended ({recommendCount})
+                  </button>
+
+                  {/* Apply All (recommend + maybe) */}
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
+                      !buttonsDisabled && hasEligibleJobs
                         ? "border-foreground bg-background text-foreground hover:bg-muted"
                         : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
                     )}
-                    onClick={runState === "idle" ? handleApplyAll : undefined}
-                    disabled={runState !== "idle"}
+                    onClick={!buttonsDisabled ? handleApplyAll : undefined}
+                    disabled={buttonsDisabled || !hasEligibleJobs}
                   >
-                    Apply All
+                    Apply All ({recommendCount + maybeCount})
                   </button>
 
-                  <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-sm font-medium text-muted-foreground" disabled>
-                    Recommend (coming soon)
+                  {/* Apply the Selected (manual top N) */}
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
+                      !buttonsDisabled
+                        ? "border-foreground bg-background text-foreground hover:bg-muted"
+                        : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
+                    )}
+                    onClick={!buttonsDisabled ? handleApplySelected : undefined}
+                    disabled={buttonsDisabled}
+                  >
+                    Apply the Selected (Top {topPositions})
                   </button>
+
+                  {/* Scan trigger */}
+                  {!scoringComplete && (
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-border/60 text-sm font-semibold transition-all",
+                        scanning
+                          ? "cursor-not-allowed bg-muted text-muted-foreground"
+                          : "bg-background text-muted-foreground hover:border-border hover:text-foreground hover:shadow-sm"
+                      )}
+                      onClick={handleScanJobs}
+                      disabled={scanning}
+                    >
+                      {scanning ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                          Scanning jobs...
+                        </>
+                      ) : (
+                        "Scan Jobs"
+                      )}
+                    </button>
+                  )}
+
+                  {/* Scored Jobs List */}
+                  {scoredJobs.length > 0 && (
+                    <ScoredJobsList jobs={scoredJobs} scanning={scanning} />
+                  )}
                 </div>
               </StepAccordion>
             </div>
@@ -1464,6 +1582,114 @@ function StepAccordion({
           </motion.div>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+/* ─── Scored Jobs List ───────────────────────────────────── */
+
+const TIER_CONFIG = {
+  recommend: { label: "Recommend", bg: "bg-[#f0fdf4]", border: "border-[#bbf7d0]", text: "text-[#15803d]", badge: "bg-[#dcfce7] text-[#15803d]" },
+  maybe: { label: "If You Need More", bg: "bg-[#fefce8]", border: "border-[#fef08a]", text: "text-[#a16207]", badge: "bg-[#fef9c3] text-[#a16207]" },
+  no: { label: "Don't Recommend", bg: "bg-[#fafafa]", border: "border-border/40", text: "text-muted-foreground", badge: "bg-muted text-muted-foreground" },
+} as const
+
+function ScoredJobsList({ jobs, scanning }: { jobs: ScoredJob[]; scanning: boolean }) {
+  const tiers: Array<"recommend" | "maybe" | "no"> = ["recommend", "maybe", "no"]
+  const eligible = jobs.filter((j) => j.eligible)
+  const ineligible = jobs.filter((j) => !j.eligible)
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Scored Jobs
+        </p>
+        <span className="text-[11px] tabular-nums text-muted-foreground">
+          {jobs.length} found
+        </span>
+      </div>
+
+      {tiers.map((tier) => {
+        const tierJobs = eligible.filter((j) => j.tier === tier)
+        if (tierJobs.length === 0) return null
+        const config = TIER_CONFIG[tier]
+
+        return (
+          <div key={tier} className={cn("overflow-hidden rounded-xl border", config.border)}>
+            {/* Tier header */}
+            <div className={cn("flex items-center justify-between px-3.5 py-2", config.bg)}>
+              <span className={cn("text-xs font-bold uppercase tracking-wider", config.text)}>
+                {config.label}
+              </span>
+              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", config.badge)}>
+                {tierJobs.length}
+              </span>
+            </div>
+            {/* Job rows */}
+            <div className="divide-y divide-border/40">
+              {tierJobs.map((job) => (
+                <div key={job.id} className={cn("flex items-center gap-3 px-3.5 py-2.5 transition-colors", tier === "recommend" && "bg-[#fafffe]")}>
+                  {/* Layer indicator */}
+                  <span className={cn(
+                    "flex h-2 w-2 shrink-0 rounded-full transition-colors",
+                    job.layer === 2 ? "bg-[#16a34a]" : "bg-[#d1d5db]"
+                  )} title={job.layer === 2 ? "Fully enriched" : "Preliminary"} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-foreground">{job.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-xs text-muted-foreground">{job.company}</span>
+                      <span className="text-[10px] text-muted-foreground/40">{"/"}</span>
+                      <span className="truncate text-xs text-muted-foreground/70">{job.location}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Ineligible section */}
+      {ineligible.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-border/30 opacity-60">
+          <div className="flex items-center justify-between bg-muted/30 px-3.5 py-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Ineligible
+            </span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+              {ineligible.length}
+            </span>
+          </div>
+          <div className="divide-y divide-border/30">
+            {ineligible.map((job) => (
+              <div key={job.id} className="group relative px-3.5 py-2.5" title={job.ineligibleReason || "Ineligible"}>
+                <p className="truncate text-sm font-medium text-muted-foreground">{job.title}</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate text-xs text-muted-foreground/60">{job.company}</span>
+                  <span className="text-[10px] text-muted-foreground/30">{"/"}</span>
+                  <span className="truncate text-xs text-muted-foreground/50">{job.location}</span>
+                </div>
+                {job.ineligibleReason && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-full z-10 mx-2 mb-1 hidden rounded-lg border border-border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground shadow-lg group-hover:block">
+                    {job.ineligibleReason}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {scanning && (
+        <div className="flex items-center justify-center gap-2 py-2">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />
+          </span>
+          <span className="text-xs text-muted-foreground">Scoring in progress...</span>
+        </div>
+      )}
     </div>
   )
 }
