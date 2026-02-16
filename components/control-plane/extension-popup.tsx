@@ -1637,7 +1637,12 @@ function ScoredJobsList({
         Apply Recommended ({recommendCount})
       </button>
 
-      {/* Apply All -- above DON'T RECOMMEND */}
+      {/* MAYBE tier */}
+      {maybeJobs.length > 0 && (
+        <TierSection tier="maybe" jobs={maybeJobs} />
+      )}
+
+      {/* Apply All -- below MAYBE, above DON'T RECOMMEND */}
       <button
         type="button"
         className={cn(
@@ -1651,11 +1656,6 @@ function ScoredJobsList({
       >
         Apply All ({recommendCount + maybeCount})
       </button>
-
-      {/* MAYBE tier */}
-      {maybeJobs.length > 0 && (
-        <TierSection tier="maybe" jobs={maybeJobs} />
-      )}
 
       {/* Thin separator before "no" tier */}
       {noJobs.length > 0 && <div className="h-px bg-border/50" />}
