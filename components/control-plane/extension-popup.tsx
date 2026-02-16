@@ -203,6 +203,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
 
   // Step 3
+  const [topPositions, setTopPositions] = useState(10)
   const [runState, setRunState] = useState<RunState>("idle")
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
   const [confirmAcknowledged, setConfirmAcknowledged] = useState(false)
@@ -308,10 +309,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setRunState("idle")
     setConfirmModalOpen(false)
     setConfirmAcknowledged(false)
+    setTopPositions(10)
     setScoredJobs([])
     setScanning(false)
     setScoringComplete(false)
-    scanTriggeredRef.current = false
   }, [])
 
   const handleStartFresh = useCallback(() => {
@@ -525,48 +526,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     return override?.[field] ?? base[field]
   }
 
-  /* ─── Auto-trigger scan when Step 3 becomes active ──── */
-
-  const scanTriggeredRef = useRef(false)
-
-  useEffect(() => {
-    if (steps.step3 === "in-progress" && activeStep === 3 && !scanTriggeredRef.current && !scanning && !scoringComplete) {
-      scanTriggeredRef.current = true
-      // Small delay for the accordion to open before scan starts
-      const t = setTimeout(() => handleScanJobs(), 600)
-      return () => clearTimeout(t)
-    }
-    if (steps.step3 === "not-started") {
-      scanTriggeredRef.current = false
-    }
-  }, [steps.step3, activeStep, scanning, scoringComplete, handleScanJobs])
-
-  /* ─── Scan status messages ──────────────────────────── */
-
-  const [scanStatus, setScanStatus] = useState("")
-
-  useEffect(() => {
-    if (!scanning) {
-      if (scoringComplete) setScanStatus("")
-      return
-    }
-    const messages = [
-      "Accessing LinkedIn data...",
-      "Analyzing job requirements...",
-      "Matching against your profile...",
-      `Filtering ${MOCK_SCORED_JOBS.length} identified positions...`,
-      "Scoring compatibility...",
-      "Enriching top matches...",
-    ]
-    let i = 0
-    setScanStatus(messages[0])
-    const interval = setInterval(() => {
-      i = (i + 1) % messages.length
-      setScanStatus(messages[i])
-    }, 1400)
-    return () => clearInterval(interval)
-  }, [scanning, scoringComplete])
-
   /* ─── Step toggle (collapse on re-click) ───────────── */
 
   const handleStepToggle = useCallback((step: 1 | 2 | 3) => {
@@ -579,7 +538,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex w-[400px] max-w-[400px] flex-col border-l border-border/60 bg-[#fcfcfd] p-0 shadow-2xl sm:max-w-[400px] sm:w-[400px]"
+        className="flex w-[400px] flex-col border-l border-border/40 bg-[#fcfcfd] p-0 shadow-xl sm:w-[400px]"
       >
         {/* Hidden file input */}
         <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={handleFileChange} />
@@ -590,39 +549,39 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {authState === "ANON_FREE" && (
           <div className="flex flex-1 flex-col">
             {/* Header */}
-            <div className="shrink-0 border-b border-border px-6 pb-5 pt-6">
+            <div className="shrink-0 border-b border-border/50 px-6 pb-4 pt-5">
               <SheetHeader className="space-y-0">
                 <div className="flex items-baseline gap-2">
-                  <SheetTitle className="text-[22px] font-bold tracking-tight text-foreground">Y.EAA</SheetTitle>
-                  <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[10px] font-semibold tracking-widest text-[#3b82f6]">BETA</span>
+                  <SheetTitle className="text-[20px] font-semibold tracking-tight text-foreground">Y.EAA</SheetTitle>
+                  <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[9px] font-semibold tracking-widest text-[#3b82f6]/80">BETA</span>
                 </div>
               </SheetHeader>
             </div>
 
             {/* Body */}
             <div className="flex flex-1 flex-col items-center justify-center px-8">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-foreground">
-                <Zap className="h-6 w-6 text-background" strokeWidth={2} />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-foreground">
+                <Zap className="h-5 w-5 text-background" strokeWidth={1.5} />
               </div>
-              <h2 className="mt-5 text-center text-xl font-bold tracking-tight text-foreground">Apply Instantly</h2>
-              <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
+              <h2 className="mt-5 text-center text-lg font-semibold tracking-tight text-foreground">Apply Instantly</h2>
+              <p className="mt-2 text-center text-[13px] leading-relaxed text-muted-foreground">
                 No account required to get started.
               </p>
               <button
                 type="button"
-                className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-foreground text-sm font-bold text-background transition-all hover:opacity-90"
+                className="mt-8 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-foreground text-[13px] font-semibold text-background transition-all duration-200 hover:opacity-90"
                 onClick={handleStartFreeApplication}
               >
                 {"Start Application \u2192"}
               </button>
-              <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground/70">
+              <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground/60">
                 Login required after your first successful application.
               </p>
             </div>
 
             {/* Footer */}
-            <div className="shrink-0 border-t border-border px-6 py-4">
-              <p className="text-center text-[11px] leading-relaxed text-muted-foreground/60">
+            <div className="shrink-0 border-t border-border/40 px-6 py-3.5">
+              <p className="text-center text-[10px] leading-relaxed text-muted-foreground/50">
                 Y.EAA does not store credentials or login sessions.
               </p>
             </div>
@@ -635,29 +594,29 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {authState === "AUTH_REQUIRED" && (
           <div className="flex flex-1 flex-col">
             {/* Header */}
-            <div className="shrink-0 border-b border-border px-6 pb-5 pt-6">
+            <div className="shrink-0 border-b border-border/50 px-6 pb-4 pt-5">
               <SheetHeader className="space-y-0">
                 <div className="flex items-baseline gap-2">
-                  <SheetTitle className="text-[22px] font-bold tracking-tight text-foreground">Y.EAA</SheetTitle>
-                  <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[10px] font-semibold tracking-widest text-[#3b82f6]">BETA</span>
+                  <SheetTitle className="text-[20px] font-semibold tracking-tight text-foreground">Y.EAA</SheetTitle>
+                  <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[9px] font-semibold tracking-widest text-[#3b82f6]/80">BETA</span>
                 </div>
               </SheetHeader>
             </div>
 
             {/* Body */}
             <div className="flex flex-1 flex-col items-center justify-center px-8">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted">
-                <Lock className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/80">
+                <Lock className="h-5 w-5 text-muted-foreground" strokeWidth={1.5} />
               </div>
-              <h2 className="mt-5 text-center text-xl font-bold tracking-tight text-foreground">Create Account to Continue</h2>
-              <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
+              <h2 className="mt-5 text-center text-lg font-semibold tracking-tight text-foreground">Create Account to Continue</h2>
+              <p className="mt-2 text-center text-[13px] leading-relaxed text-muted-foreground">
                 Sign in to continue applying.
               </p>
 
               <div className="mt-8 w-full space-y-3">
                 <button
                   type="button"
-                  className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-border/60 bg-background text-sm font-semibold text-foreground transition-all hover:border-border hover:shadow-md hover:shadow-black/5 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-border/50 bg-background text-[13px] font-semibold text-foreground transition-all duration-200 hover:border-border/80 hover:shadow-sm hover:shadow-black/5 disabled:cursor-not-allowed disabled:opacity-60"
                   onClick={handleGoogleLogin}
                   disabled={authLoading}
                 >
@@ -678,17 +637,17 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
               </div>
 
-              <p className="mt-5 text-center text-xs leading-relaxed text-muted-foreground/70">
+              <p className="mt-5 text-center text-[11px] leading-relaxed text-muted-foreground/60">
                 We use your account only to manage application credits.
               </p>
-              <button type="button" className="mt-4 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground" onClick={() => setAuthState("ANON_FREE")}>
+              <button type="button" className="mt-4 text-[11px] font-medium text-muted-foreground transition-colors duration-200 hover:text-foreground" onClick={() => setAuthState("ANON_FREE")}>
                 {"< Back"}
               </button>
             </div>
 
             {/* Footer */}
-            <div className="shrink-0 border-t border-border px-6 py-4">
-              <p className="text-center text-[11px] leading-relaxed text-muted-foreground/60">
+            <div className="shrink-0 border-t border-border/40 px-6 py-3.5">
+              <p className="text-center text-[10px] leading-relaxed text-muted-foreground/50">
                 Y.EAA does not store credentials or login sessions.
               </p>
             </div>
@@ -701,15 +660,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
         {authState === "AUTH_NO_CREDIT" && (
           <div className="flex flex-1 flex-col">
             {/* Header */}
-            <div className="shrink-0 border-b border-border px-6 pb-5 pt-6">
+            <div className="shrink-0 border-b border-border/50 px-6 pb-4 pt-5">
               <SheetHeader className="space-y-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-baseline gap-2">
-                    <SheetTitle className="text-[22px] font-bold tracking-tight text-foreground">Y.EAA</SheetTitle>
-                    <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[10px] font-semibold tracking-widest text-[#3b82f6]">BETA</span>
+                    <SheetTitle className="text-[20px] font-semibold tracking-tight text-foreground">Y.EAA</SheetTitle>
+                    <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[9px] font-semibold tracking-widest text-[#3b82f6]/80">BETA</span>
                   </div>
-                  <span className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-medium text-red-600">
-                    Credits: <span className="font-mono font-bold tabular-nums">0</span>
+                  <span className="flex items-center gap-1.5 rounded-full border border-red-200/60 bg-red-50/80 px-2.5 py-1 text-[12px] font-medium text-red-500">
+                    Credits: <span className="font-mono font-semibold tabular-nums">0</span>
                   </span>
                 </div>
               </SheetHeader>
@@ -717,17 +676,17 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
             {/* Body */}
             <div className="flex flex-1 flex-col items-center justify-center px-8">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
-                <AlertCircle className="h-6 w-6 text-red-500" strokeWidth={1.5} />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-50/80">
+                <AlertCircle className="h-5 w-5 text-red-400" strokeWidth={1.5} />
               </div>
-              <h2 className="mt-5 text-center text-xl font-bold tracking-tight text-foreground">{"You\u2019re Out of Credits"}</h2>
-              <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
+              <h2 className="mt-5 text-center text-lg font-semibold tracking-tight text-foreground">{"You\u2019re Out of Credits"}</h2>
+              <p className="mt-2 text-center text-[13px] leading-relaxed text-muted-foreground">
                 Credits refresh automatically.
               </p>
 
               <button
                 type="button"
-                className="mt-8 flex h-12 w-full cursor-not-allowed items-center justify-center rounded-xl bg-muted text-sm font-bold text-muted-foreground"
+                className="mt-8 flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl bg-muted/80 text-[13px] font-semibold text-muted-foreground"
                 disabled
               >
                 Start Application
@@ -737,8 +696,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
               {/* Referral code rescue */}
               <div className="mt-8 w-full">
-                <div className="h-px bg-border" />
-                <p className="mt-4 text-sm font-semibold text-foreground">Have a referral code?</p>
+                <div className="h-px bg-border/40" />
+                <p className="mt-4 text-[13px] font-medium text-foreground">Have a referral code?</p>
                 <div className="mt-2.5 flex gap-2">
                   <Input
                     type="text"
@@ -763,9 +722,9 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </div>
 
             {/* Footer */}
-            <div className="shrink-0 border-t border-border px-6 py-4">
-              <button type="button" className="flex w-full items-center justify-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground" onClick={handleLogout}>
-                <LogOut className="h-3 w-3" strokeWidth={1.5} />
+            <div className="shrink-0 border-t border-border/40 px-6 py-3.5">
+              <button type="button" className="flex w-full items-center justify-center gap-1.5 text-[11px] text-muted-foreground/70 transition-colors duration-200 hover:text-foreground" onClick={handleLogout}>
+                <LogOut className="h-2.5 w-2.5" strokeWidth={1.5} />
                 Sign out
               </button>
             </div>
@@ -813,15 +772,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   )}>
                     <div className="flex items-center gap-2.5">
                       {runState === "running" && (
-                        <span className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-60" />
-                          <span className="relative inline-flex h-2 w-2 rounded-full bg-[#3b82f6]" />
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-50" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />
                         </span>
                       )}
-                      {runState === "paused" && <Pause className="h-3 w-3 text-[#ca8a04]" strokeWidth={2} />}
-                      {runState === "stopped" && <Square className="h-3 w-3 text-[#dc2626]" strokeWidth={2} />}
+                      {runState === "paused" && <Pause className="h-3 w-3 text-[#ca8a04]" strokeWidth={1.5} />}
+                      {runState === "stopped" && <Square className="h-3 w-3 text-[#dc2626]" strokeWidth={1.5} />}
                       {runState === "completed" && <Check className="h-3 w-3 text-[#16a34a]" strokeWidth={2} />}
-                      <span className="text-sm font-semibold tracking-wide text-foreground">
+                      <span className="text-[13px] font-medium text-foreground">
                         {runState === "running" && "Applying"}
                         {runState === "paused" && "Paused"}
                         {runState === "stopped" && "Stopped"}
@@ -865,41 +824,41 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </AnimatePresence>
 
             {/* ─── Header ─────────────────────────────────── */}
-            <div className="shrink-0 border-b border-border px-6 pb-5 pt-6">
+            <div className="shrink-0 border-b border-border/50 px-6 pb-4 pt-5">
               <SheetHeader className="space-y-0">
                 <div className="flex items-center justify-between">
                   <div className="flex items-baseline gap-2">
-                    <SheetTitle className="text-[22px] font-bold tracking-tight text-foreground">
+                    <SheetTitle className="text-[20px] font-semibold tracking-tight text-foreground">
                       Y.EAA
                     </SheetTitle>
-                    <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[10px] font-semibold tracking-widest text-[#3b82f6]">
+                    <span className="rounded-full bg-[#f0f7ff] px-2 py-0.5 text-[9px] font-semibold tracking-widest text-[#3b82f6]/80">
                       BETA
                     </span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-2">
                     {/* Start Fresh */}
                     <button
                       type="button"
-                      className="flex h-7 items-center gap-1.5 rounded-full border border-border/40 bg-background px-2.5 text-[11px] font-medium text-muted-foreground/70 transition-all duration-150 hover:border-border/60 hover:text-foreground"
+                      className="flex h-7 items-center gap-1.5 rounded-full border border-border/40 bg-background px-2.5 text-[11px] font-medium text-muted-foreground transition-all duration-200 hover:border-border/80 hover:text-foreground"
                       onClick={handleStartFresh}
                     >
                       <RefreshCw className="h-2.5 w-2.5" strokeWidth={1.5} />
-                      Reset
+                      Start Fresh
                     </button>
                     {/* Balance pill */}
                     <button
                       ref={balanceRef}
                       type="button"
                       className={cn(
-                        "group flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-all duration-150",
+                        "group flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-medium transition-all duration-200",
                         quotaIsZero
                           ? "border-red-200/80 bg-red-50 text-red-600 hover:border-red-300"
-                          : "border-border/40 bg-background text-foreground hover:border-border/60"
+                          : "border-border/40 bg-background text-foreground hover:border-border/80"
                       )}
                       onClick={() => setPopoverOpen(!popoverOpen)}
                     >
-                      <span className="text-[11px] text-muted-foreground/60">Credits</span>
-                      <span className="font-mono text-[12px] font-bold tabular-nums">{quota}</span>
+                      <span className="text-[12px] text-muted-foreground/70">Credits:</span>
+                      <span className="font-mono text-[12px] font-semibold tabular-nums">{quota}</span>
                     </button>
                   </div>
                 </div>
@@ -907,12 +866,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
               {/* Quota progress bar */}
               <div className="mt-3">
-                <div className="h-[2px] w-full overflow-hidden rounded-full bg-border/40">
+                <div className="h-[2px] w-full overflow-hidden rounded-full bg-muted/80">
                   <motion.div
-                    className={cn("h-full rounded-full", quotaIsZero ? "bg-red-500" : "bg-[#3b82f6]")}
+                    className={cn("h-full rounded-full", quotaIsZero ? "bg-red-400" : "bg-[#3b82f6]")}
                     initial={false}
                     animate={{ width: `${(quota / 15) * 100}%` }}
-                    transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
+                    transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
                   />
                 </div>
               </div>
@@ -928,23 +887,23 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   transition={{ duration: 0.2 }}
                   className="absolute inset-0 z-50 flex flex-col bg-background"
                 >
-                  <div className="flex items-center justify-between border-b border-border px-6 py-4">
-                    <h3 className="text-[15px] font-bold text-foreground">Account</h3>
+                  <div className="flex items-center justify-between border-b border-border/50 px-6 py-4">
+                    <h3 className="text-[14px] font-semibold text-foreground">Account</h3>
                     <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => { setPopoverOpen(false); setApiKeyEditing(false) }}>
                       <X className="h-4 w-4" strokeWidth={1.5} />
                     </button>
                   </div>
                   <div className="flex-1 overflow-y-auto px-6 py-5">
                     {/* Credits overview */}
-                    <div className="flex items-center justify-between rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
+                    <div className="flex items-center justify-between rounded-xl border border-border/40 bg-muted/20 px-4 py-3">
                       <div>
-                        <p className="text-sm font-semibold text-foreground">Credits remaining</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">Credits refresh automatically.</p>
+                        <p className="text-[13px] font-medium text-foreground">Credits remaining</p>
+                        <p className="mt-0.5 text-[11px] text-muted-foreground/70">Credits refresh automatically.</p>
                       </div>
-                      <span className="font-mono text-2xl font-bold tabular-nums text-foreground">{quota}</span>
+                      <span className="font-mono text-xl font-semibold tabular-nums text-foreground">{quota}</span>
                     </div>
 
-                    <div className="my-5 h-px bg-border" />
+                    <div className="my-5 h-px bg-border/40" />
 
                     {/* API Key section */}
                     <div>
@@ -1020,7 +979,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </AnimatePresence>
 
             {/* ─── Steps ──────────────────────────────────── */}
-            <div className="min-h-0 flex-1 overflow-y-auto scroll-smooth" style={{ scrollbarGutter: "stable" }}>
+            <div className="min-h-0 flex-1 overflow-y-auto">
 
               {/* Step 1: Upload Resume */}
               <StepAccordion
@@ -1068,36 +1027,252 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 )}
 
                 {parsingStatus === "done" && resumeName && (
-                  <div className="flex items-center gap-3 rounded-xl border border-[#bbf7d0]/40 bg-[#f0fdf4]/60 px-3.5 py-2.5">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16a34a]">
-                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[13px] font-semibold text-[#15803d]">Resume parsed</p>
-                      <p className="truncate text-[11px] text-[#16a34a]/60">{resumeName}</p>
+                  <div className="space-y-5">
+                    {/* Resume parsed confirmation */}
+                    <div className="flex items-center gap-3 rounded-xl border border-[#bbf7d0]/60 bg-[#f0fdf4] px-4 py-3">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#16a34a]/10">
+                        <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2.5} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-[#15803d]">Resume parsed</p>
+                        <p className="truncate text-sm text-[#16a34a]/70">{resumeName}</p>
+                      </div>
+                    </div>
+
+                    {/* ─── Confirm Your Details (inline) ────────── */}
+                    <div className="space-y-3">
+
+                      {/* ── Work Authorization Card ──────────────── */}
+                      <div className="rounded-xl border border-border/60 bg-[#f8f9fb]">
+                        <div className="px-3.5 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                            Work Authorization
+                          </p>
+                        </div>
+                        <div className="h-px bg-border/50" />
+
+                        {/* Country rows */}
+                        <div className="divide-y divide-border/40 px-3.5">
+                          {matrixCountries.map((country) => (
+                            <div key={country} className="py-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-foreground">{country}</span>
+                                {matrixCountries.length > 1 && !isRunning && (
+                                  <button
+                                    type="button"
+                                    className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
+                                    onClick={() => {
+                                      setMatrixCountries((prev) => prev.filter((c) => c !== country))
+                                      setMatrix((prev) => { const next = { ...prev }; delete next[country]; return next })
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" strokeWidth={1.5} />
+                                  </button>
+                                )}
+                              </div>
+                              {/* Row 1: Work Auth */}
+                              <div className="mt-2.5 flex items-center justify-between">
+                                <p className="text-xs font-medium text-muted-foreground">Work Authorization</p>
+                                <div className="flex overflow-hidden rounded-lg border border-border/60">
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
+                                      matrix[country]?.workAuth === "yes"
+                                        ? "bg-[#dcfce7] text-[#15803d]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "workAuth")}
+                                    disabled={isRunning}
+                                  >
+                                    No Need
+                                  </button>
+                                  <div className="w-px bg-border/60" />
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
+                                      matrix[country]?.workAuth === "no"
+                                        ? "bg-[#fee2e2] text-[#dc2626]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "workAuth")}
+                                    disabled={isRunning}
+                                  >
+                                    Need
+                                  </button>
+                                </div>
+                              </div>
+                              {/* Row 2: Sponsorship */}
+                              <div className="mt-2 flex items-center justify-between">
+                                <p className="text-[11px] font-medium text-muted-foreground/80">Sponsorship</p>
+                                <div className="flex overflow-hidden rounded-lg border border-border/60">
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
+                                      matrix[country]?.sponsorship === "yes"
+                                        ? "bg-[#dcfce7] text-[#15803d]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "sponsorship")}
+                                    disabled={isRunning}
+                                  >
+                                    No Need
+                                  </button>
+                                  <div className="w-px bg-border/60" />
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
+                                      matrix[country]?.sponsorship === "no"
+                                        ? "bg-[#fee2e2] text-[#dc2626]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "sponsorship")}
+                                    disabled={isRunning}
+                                  >
+                                    Need
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* + Add Country */}
+                        <div className="border-t border-border/40 px-3.5 py-2.5">
+                          <AnimatePresence>
+                            {addingCountry ? (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                                <div className="flex gap-2">
+                                  <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-background text-sm placeholder:text-muted-foreground/60" autoFocus />
+                                  <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-sm font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
+                                  <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-sm text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
+                                </div>
+                              </motion.div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/30 bg-background text-[11px] font-medium text-muted-foreground/60 transition-all duration-200 hover:border-border/60 hover:text-foreground"
+                                onClick={() => setAddingCountry(true)}
+                              >
+                                <Plus className="h-3 w-3" strokeWidth={1.5} />
+                                Add Country
+                              </button>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
+                      {/* ── EEO Disclosure Card ─────────────────── */}
+                      <div className="rounded-xl border border-border/40 bg-[#f8f9fb]">
+                        <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+                          <Shield className="h-3.5 w-3.5 text-muted-foreground/60" strokeWidth={1.5} />
+                          <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">EEO Disclosure</span>
+                          <span className="rounded bg-muted/60 px-1.5 py-0.5 text-[9px] font-medium text-muted-foreground/60">Optional</span>
+                        </div>
+                        <div className="h-px bg-border/30" />
+                        <div className="px-3.5 py-2.5">
+                          <label className="flex cursor-pointer items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={eeoPreferNot}
+                              onChange={(e) => setEeoPreferNot(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded border-border accent-foreground"
+                            />
+                            <span className="text-xs text-muted-foreground">{"Prefer not to say (recommended)"}</span>
+                          </label>
+                          <AnimatePresence>
+                            {!eeoPreferNot && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.18 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="mt-3 space-y-2.5">
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Gender</label>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoGender} onChange={(e) => setEeoGender(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="male">Male</option>
+                                      <option value="female">Female</option>
+                                      <option value="non-binary">Non-binary</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Ethnicity</label>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoRace} onChange={(e) => setEeoRace(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="white">White</option>
+                                      <option value="black">Black or African American</option>
+                                      <option value="hispanic">Hispanic or Latino</option>
+                                      <option value="asian">Asian</option>
+                                      <option value="native">Native American</option>
+                                      <option value="pacific">Pacific Islander</option>
+                                      <option value="two-or-more">Two or more races</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Veteran Status</label>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoVeteran} onChange={(e) => setEeoVeteran(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="veteran">I am a veteran</option>
+                                      <option value="not-veteran">I am not a veteran</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Disability</label>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoDisability} onChange={(e) => setEeoDisability(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="yes">Yes, I have a disability</option>
+                                      <option value="no">No, I do not have a disability</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
+                      {/* Continue button */}
+                      <button
+                        type="button"
+                        className="flex h-10 w-full items-center justify-center rounded-xl bg-foreground text-[13px] font-semibold text-background shadow-sm shadow-black/[0.06] transition-all duration-200 hover:opacity-90"
+                        onClick={handleConfirmDetails}
+                      >
+                        {"Continue \u2192"}
+                      </button>
                     </div>
                   </div>
                 )}
 
                 {parsingStatus === "idle" && (
                   <div className="grid grid-cols-3 gap-2">
-                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/50 bg-background px-2 py-5 text-center transition-all duration-150 hover:border-border/80 hover:shadow-sm hover:shadow-black/[0.03]" onClick={handleUploadFile}>
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/70 transition-colors duration-150 group-hover:bg-[#eff6ff]">
-                        <Upload className="h-3.5 w-3.5 text-muted-foreground transition-colors duration-150 group-hover:text-[#3b82f6]" strokeWidth={1.5} />
+                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/40 bg-background px-2 py-5 text-center transition-all duration-200 hover:border-border/70 hover:shadow-sm hover:shadow-black/[0.03]" onClick={handleUploadFile}>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/60 transition-colors duration-200 group-hover:bg-[#f0f7ff]">
+                        <Upload className="h-3.5 w-3.5 text-muted-foreground transition-colors duration-200 group-hover:text-[#3b82f6]" strokeWidth={1.5} />
                       </span>
-                      <span className="text-[12px] font-semibold text-foreground">Upload File</span>
+                      <span className="text-[12px] font-medium text-foreground">Upload File</span>
                     </button>
-                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/50 bg-background px-2 py-5 text-center transition-all duration-150 hover:border-border/80 hover:shadow-sm hover:shadow-black/[0.03]" onClick={() => setPasteModalOpen(true)}>
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/70 transition-colors duration-150 group-hover:bg-[#f5f3ff]">
-                        <ClipboardPaste className="h-3.5 w-3.5 text-muted-foreground transition-colors duration-150 group-hover:text-[#7c3aed]" strokeWidth={1.5} />
+                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/40 bg-background px-2 py-5 text-center transition-all duration-200 hover:border-border/70 hover:shadow-sm hover:shadow-black/[0.03]" onClick={() => setPasteModalOpen(true)}>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/60 transition-colors duration-200 group-hover:bg-[#faf5ff]">
+                        <ClipboardPaste className="h-3.5 w-3.5 text-muted-foreground transition-colors duration-200 group-hover:text-[#8b5cf6]" strokeWidth={1.5} />
                       </span>
-                      <span className="text-[12px] font-semibold text-foreground">Paste Text</span>
+                      <span className="text-[12px] font-medium text-foreground">Paste Text</span>
                     </button>
-                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/50 bg-background px-2 py-5 text-center transition-all duration-150 hover:border-[#0077b5]/20 hover:shadow-sm hover:shadow-black/[0.03]" onClick={handleConnectLinkedIn}>
-                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f0f9ff]/80 transition-colors duration-150 group-hover:bg-[#e0f2fe]">
+                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/40 bg-background px-2 py-5 text-center transition-all duration-200 hover:border-[#0077b5]/20 hover:shadow-sm hover:shadow-black/[0.03]" onClick={handleConnectLinkedIn}>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f0f9ff] transition-colors duration-200 group-hover:bg-[#e0f2fe]">
                         <Linkedin className="h-3.5 w-3.5 text-[#0077b5]" strokeWidth={1.5} />
                       </span>
-                      <span className="text-[12px] font-semibold text-foreground">LinkedIn</span>
+                      <span className="text-[12px] font-medium text-foreground">LinkedIn</span>
                     </button>
                   </div>
                 )}
@@ -1127,30 +1302,30 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                         <button
                           type="button"
                           className={cn(
-                            "w-full rounded-xl border p-4 text-left transition-all",
+                            "w-full rounded-xl border p-4 text-left transition-all duration-200",
                             isSelected
-                              ? "border-[#3b82f6]/40 bg-[#f8fbff] shadow-sm shadow-[#3b82f6]/5"
-                              : "border-border/60 bg-background hover:border-border hover:shadow-sm hover:shadow-black/5",
+                              ? "border-[#3b82f6]/30 bg-[#f8fbff] shadow-sm shadow-[#3b82f6]/[0.04]"
+                              : "border-border/40 bg-background hover:border-border/60 hover:shadow-sm hover:shadow-black/[0.03]",
                             isRunning && "pointer-events-none opacity-60"
                           )}
                           onClick={() => { if (!isRunning) setSelectedProfile(profile.id) }}
                           disabled={isRunning}
                         >
-                          <p className="pr-8 text-sm font-semibold text-foreground">{currentRole}</p>
-                          {!isEditing && <p className="mt-1 text-sm text-muted-foreground">{currentTargeting}</p>}
+                          <p className="pr-8 text-[13px] font-medium text-foreground">{currentRole}</p>
+                          {!isEditing && <p className="mt-1 text-[12px] text-muted-foreground">{currentTargeting}</p>}
                           <div className="mt-2.5 flex flex-wrap gap-1.5">
                             {LOCATION_OPTIONS.map((loc) => (
-                              <span key={loc} className={cn("rounded-md px-2 py-0.5 text-sm font-medium transition-colors", currentLocation.includes(loc) ? "bg-[#dbeafe] text-[#1d4ed8]" : "bg-muted text-muted-foreground")}>
+                              <span key={loc} className={cn("rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors duration-150", currentLocation.includes(loc) ? "bg-[#dbeafe]/80 text-[#2563eb]" : "bg-muted/60 text-muted-foreground/70")}>
                                 {loc}
                               </span>
                             ))}
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm text-muted-foreground">
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                             {currentSeniority.map((s) => (
-                              <span key={s} className="rounded bg-muted px-1.5 py-0.5 font-medium">{s}</span>
+                              <span key={s} className="rounded bg-muted/60 px-1.5 py-0.5 font-medium">{s}</span>
                             ))}
                             {currentType.map((t) => (
-                              <span key={t} className="rounded bg-muted px-1.5 py-0.5 font-medium">{t}</span>
+                              <span key={t} className="rounded bg-muted/60 px-1.5 py-0.5 font-medium">{t}</span>
                             ))}
                           </div>
                         </button>
@@ -1237,7 +1412,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
                 {/* Create Custom (Coming Soon) */}
                 <div className="mt-3">
-                  <button type="button" className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/60 text-sm font-medium text-muted-foreground" disabled>
+                  <button type="button" className="flex h-10 w-full cursor-not-allowed items-center justify-center rounded-xl border border-dashed border-border/30 text-[12px] font-medium text-muted-foreground/50" disabled>
                     <Plus className="mr-1.5 h-3 w-3" strokeWidth={1.5} />
                     Custom Profile (Coming Soon)
                   </button>
@@ -1245,24 +1420,17 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
                 {/* Start */}
                 {steps.step2 === "in-progress" && !isRunning && (
-                  <div className="mt-6 space-y-2">
+                  <div className="mt-6">
                     <button
                       type="button"
                       className={cn(
-                        "flex h-10 w-full items-center justify-center rounded-xl text-[13px] font-bold tracking-wide transition-all duration-150",
+                        "flex h-10 w-full items-center justify-center rounded-xl text-[13px] font-semibold transition-all duration-200",
                         selectedProfile
-                          ? "bg-foreground text-background shadow-sm shadow-foreground/10 hover:opacity-90"
-                          : "cursor-not-allowed bg-muted text-muted-foreground"
+                          ? "bg-foreground text-background shadow-sm shadow-black/[0.06] hover:opacity-90"
+                          : "cursor-not-allowed bg-muted/80 text-muted-foreground"
                       )}
                       onClick={handleStartApplying}
                       disabled={!selectedProfile}
-                    >
-                      Apply to selected role
-                    </button>
-                    <button
-                      type="button"
-                      className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg text-[12px] font-medium text-muted-foreground transition-all duration-150 hover:text-foreground"
-                      onClick={handleGoToLinkedIn}
                     >
                       {"Start \u2192"}
                     </button>
@@ -1273,48 +1441,105 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               {/* Step 3: Start Fill */}
               <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") handleStepToggle(3) }} canToggle={steps.step3 !== "not-started"}>
                 <div className="space-y-4">
-                  {/* Scan status indicator */}
-                  {scanning && scanStatus && (
-                    <div className="flex items-center gap-2.5 rounded-lg bg-muted/40 px-3.5 py-2.5">
-                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#3b82f6]" strokeWidth={2} />
-                      <p className="text-xs text-muted-foreground">{scanStatus}</p>
-                    </div>
-                  )}
-
-                  {/* Scored Jobs List with interleaved Apply buttons */}
-                  {scoredJobs.length > 0 && (
-                    <ScoredJobsList
-                      jobs={scoredJobs}
-                      scanning={scanning}
-                      recommendCount={recommendCount}
-                      maybeCount={maybeCount}
-                      hasEligibleJobs={hasEligibleJobs}
-                      buttonsDisabled={buttonsDisabled}
-                      onApplyRecommended={handleApplyRecommended}
-                      onApplyAll={handleApplyAll}
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm font-medium text-foreground">Apply the top</span>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={topPositions}
+                      onChange={(e) => setTopPositions(Math.max(1, Number.parseInt(e.target.value) || 1))}
+                      onFocus={(e) => e.target.select()}
+                      className="h-8 w-16 rounded-lg border-border/60 bg-muted/50 text-center text-sm font-bold tabular-nums text-foreground"
+                      disabled={buttonsDisabled}
                     />
+                    <span className="text-sm font-medium text-foreground">positions</span>
+                  </div>
+
+                  {/* Apply Recommended */}
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex h-10 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-all duration-200",
+                      !buttonsDisabled && recommendCount > 0
+                        ? "border-[#16a34a]/40 bg-[#f0fdf4] text-[#16a34a] hover:bg-[#dcfce7]"
+                        : "cursor-not-allowed border-muted bg-muted/80 text-muted-foreground"
+                    )}
+                    onClick={handleApplyRecommended}
+                    disabled={buttonsDisabled || recommendCount === 0}
+                  >
+                    Apply Recommended ({recommendCount})
+                  </button>
+
+                  {/* Apply All (recommend + maybe) */}
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex h-10 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-all duration-200",
+                      !buttonsDisabled && hasEligibleJobs
+                        ? "border-border/60 bg-background text-foreground hover:bg-muted/50"
+                        : "cursor-not-allowed border-muted bg-muted/80 text-muted-foreground"
+                    )}
+                    onClick={!buttonsDisabled ? handleApplyAll : undefined}
+                    disabled={buttonsDisabled || !hasEligibleJobs}
+                  >
+                    Apply All ({recommendCount + maybeCount})
+                  </button>
+
+                  {/* Apply the Selected (manual top N) */}
+                  <button
+                    type="button"
+                    className={cn(
+                      "flex h-10 w-full items-center justify-center rounded-xl border text-[13px] font-semibold transition-all duration-200",
+                      !buttonsDisabled
+                        ? "border-border/60 bg-background text-foreground hover:bg-muted/50"
+                        : "cursor-not-allowed border-muted bg-muted/80 text-muted-foreground"
+                    )}
+                    onClick={!buttonsDisabled ? handleApplySelected : undefined}
+                    disabled={buttonsDisabled}
+                  >
+                    Apply the Selected (Top {topPositions})
+                  </button>
+
+                  {/* Scan trigger */}
+                  {!scoringComplete && (
+                    <button
+                      type="button"
+                      className={cn(
+                        "flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-[13px] font-medium transition-all duration-200",
+                        scanning
+                          ? "cursor-not-allowed border-muted bg-muted/80 text-muted-foreground"
+                          : "border-border/40 bg-background text-muted-foreground hover:border-border/70 hover:text-foreground"
+                      )}
+                      onClick={handleScanJobs}
+                      disabled={scanning}
+                    >
+                      {scanning ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" strokeWidth={2} />
+                          Scanning jobs...
+                        </>
+                      ) : (
+                        "Scan Jobs"
+                      )}
+                    </button>
                   )}
 
-                  {/* Empty state before scan completes */}
-                  {scoredJobs.length === 0 && !scanning && !scoringComplete && (
-                    <div className="flex flex-col items-center justify-center py-6 text-center">
-                      <FileText className="h-5 w-5 text-muted-foreground/40" strokeWidth={1.5} />
-                      <p className="mt-2 text-xs text-muted-foreground/60">
-                        Scan will start automatically...
-                      </p>
-                    </div>
+                  {/* Scored Jobs List */}
+                  {scoredJobs.length > 0 && (
+                    <ScoredJobsList jobs={scoredJobs} scanning={scanning} />
                   )}
                 </div>
               </StepAccordion>
             </div>
 
             {/* ─── Footer ────────────────────────────────── */}
-            <div className="shrink-0 border-t border-border/50 px-6 py-2.5">
+            <div className="shrink-0 border-t border-border/40 px-6 py-3">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] leading-relaxed text-muted-foreground/40">
-                  Y.EAA does not store credentials.
+                <p className="text-[10px] leading-relaxed text-muted-foreground/50">
+                  Y.EAA does not store credentials or login sessions.
                 </p>
-                <button type="button" className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/50 transition-colors duration-150 hover:text-foreground" onClick={handleLogout}>
+                <button type="button" className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/60 transition-colors duration-200 hover:text-foreground" onClick={handleLogout}>
                   <LogOut className="h-2.5 w-2.5" strokeWidth={1.5} />
                   Sign Out
                 </button>
@@ -1327,7 +1552,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/97 backdrop-blur-md">
                   <div className="w-full max-w-[320px] px-6">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-bold tracking-tight text-foreground">Paste Resume</h3>
+                      <h3 className="text-[16px] font-semibold tracking-tight text-foreground">Paste Resume</h3>
                       <button type="button" className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>
                         <X className="h-4 w-4" strokeWidth={1.5} />
                       </button>
@@ -1335,8 +1560,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     <div className="mt-5 space-y-3">
                       <Textarea value={pasteText} onChange={(e) => setPasteText(e.target.value)} placeholder="Paste your resume text here" className="min-h-[180px] resize-none rounded-xl border-border/60 bg-muted/30 text-sm leading-relaxed placeholder:text-muted-foreground/50 focus:border-[#3b82f6] focus:ring-1 focus:ring-[#3b82f6]/20" autoFocus />
                       <div className="flex gap-2.5">
-                        <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>Cancel</button>
-                        <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-sm font-bold transition-all", pasteText.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted text-muted-foreground")} onClick={handlePasteSubmit} disabled={!pasteText.trim()}>Upload</button>
+                        <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/40 text-[13px] font-medium text-muted-foreground transition-all duration-200 hover:border-border/70 hover:text-foreground" onClick={() => { setPasteModalOpen(false); setPasteText("") }}>Cancel</button>
+                        <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl text-[13px] font-semibold transition-all duration-200", pasteText.trim() ? "bg-foreground text-background hover:opacity-90" : "cursor-not-allowed bg-muted/80 text-muted-foreground")} onClick={handlePasteSubmit} disabled={!pasteText.trim()}>Upload</button>
                       </div>
                     </div>
                   </div>
@@ -1351,7 +1576,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               {confirmModalOpen && (
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-xl">
                   <div className="w-full max-w-[300px] px-6">
-                    <h3 className="text-[17px] font-bold tracking-tight text-foreground">Before you continue</h3>
+                    <h3 className="text-[16px] font-semibold tracking-tight text-foreground">Before you continue</h3>
                     <div className="mt-4 space-y-3.5">
                       {selectedProfile && AI_PROFILES.find((p) => p.id === selectedProfile) && (
                         <div className="rounded-xl border border-border/60 bg-muted/30 px-4 py-3">
@@ -1382,10 +1607,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       </label>
                     </div>
                     <div className="mt-6 flex gap-2.5">
-                      <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground" onClick={() => { setConfirmModalOpen(false); setConfirmAcknowledged(false) }}>
+                      <button type="button" className="flex h-10 flex-1 items-center justify-center rounded-xl border border-border/40 text-[13px] font-medium text-muted-foreground transition-all duration-200 hover:border-border/70 hover:text-foreground" onClick={() => { setConfirmModalOpen(false); setConfirmAcknowledged(false) }}>
                         Cancel
                       </button>
-                      <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl border text-sm font-semibold transition-all", confirmAcknowledged ? "border-foreground text-foreground hover:bg-muted" : "cursor-not-allowed border-muted text-muted-foreground")} onClick={handleConfirmProceed} disabled={!confirmAcknowledged}>
+                      <button type="button" className={cn("flex h-10 flex-1 items-center justify-center rounded-xl border text-[13px] font-semibold transition-all duration-200", confirmAcknowledged ? "border-foreground text-foreground hover:bg-muted/50" : "cursor-not-allowed border-muted text-muted-foreground")} onClick={handleConfirmProceed} disabled={!confirmAcknowledged}>
                         Proceed
                       </button>
                     </div>
@@ -1424,44 +1649,43 @@ function StepAccordion({
   const indicator = STEP_INDICATOR[status]
 
   return (
-    <div className="border-b border-border/70">
+    <div className="border-b border-border/50">
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between px-6 py-4 text-left transition-colors duration-150",
-          canToggle ? "hover:bg-muted/30" : "cursor-default",
-          isActive && "bg-muted/15"
+          "flex w-full items-center justify-between px-6 py-4 text-left transition-colors duration-200",
+          canToggle ? "hover:bg-muted/30" : "cursor-default"
         )}
         onClick={onToggle}
         disabled={!canToggle}
       >
         <div className="flex items-center gap-3">
           <span className={cn(
-            "flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-bold ring-1 transition-all duration-200",
+            "flex h-7 w-7 items-center justify-center rounded-lg text-[11px] font-semibold ring-1 transition-colors duration-200",
             indicator.bg, indicator.ring, indicator.text,
-            status === "completed" && "ring-0 bg-[#16a34a] text-white"
+            status === "completed" && "ring-0"
           )}>
-            {status === "completed" ? <Check className="h-3 w-3" strokeWidth={3} /> : number}
+            {status === "completed" ? <Check className="h-3.5 w-3.5" strokeWidth={2.5} /> : number}
           </span>
           <span className={cn(
-            "text-[14px] font-semibold tracking-tight transition-colors",
-            status === "not-started" ? "text-muted-foreground/70" : "text-foreground"
+            "text-[14px] font-semibold transition-colors duration-200",
+            status === "not-started" ? "text-muted-foreground" : "text-foreground"
           )}>
             {title}
           </span>
-          {titleAction && <span className="ml-0.5">{titleAction}</span>}
+          {titleAction && <span className="ml-1">{titleAction}</span>}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <span className={cn(
-            "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]",
-            status === "not-started" && "bg-muted/70 text-muted-foreground/50",
-            status === "in-progress" && "bg-[#eff6ff] text-[#1d4ed8]",
-            status === "completed" && "bg-[#f0fdf4] text-[#15803d]",
+            "rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+            status === "not-started" && "bg-muted/70 text-muted-foreground/70",
+            status === "in-progress" && "bg-[#eff6ff] text-[#2563eb]",
+            status === "completed" && "bg-[#f0fdf4] text-[#16a34a]",
           )}>
             {STATUS_COPY[status]}
           </span>
           {canToggle && (
-            <ChevronDown className={cn("h-3 w-3 text-muted-foreground/50 transition-transform duration-200", isActive && "rotate-180")} strokeWidth={1.5} />
+            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/60 transition-transform duration-200", isActive && "rotate-180")} strokeWidth={1.5} />
           )}
         </div>
       </button>
@@ -1472,7 +1696,7 @@ function StepAccordion({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+            transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
             <div className="px-6 pb-6 pt-1">{children}</div>
@@ -1486,116 +1710,86 @@ function StepAccordion({
 /* ─── Scored Jobs List ───────────────────────────────────── */
 
 const TIER_CONFIG = {
-  recommend: { label: "Recommend", bg: "bg-[#f0fdf4]/70", border: "border-[#bbf7d0]/60", text: "text-[#15803d]", badge: "bg-[#dcfce7]/80 text-[#15803d]" },
-  maybe: { label: "If You Need More", bg: "bg-[#fefce8]/60", border: "border-[#fef08a]/50", text: "text-[#a16207]", badge: "bg-[#fef9c3]/80 text-[#a16207]" },
-  no: { label: "Don't Recommend", bg: "bg-muted/30", border: "border-border/30", text: "text-muted-foreground/70", badge: "bg-muted/60 text-muted-foreground/70" },
+  recommend: { label: "Recommend", bg: "bg-[#f0fdf4]", border: "border-[#bbf7d0]/60", text: "text-[#16a34a]", badge: "bg-[#dcfce7] text-[#16a34a]" },
+  maybe: { label: "If You Need More", bg: "bg-[#fefce8]", border: "border-[#fef08a]/50", text: "text-[#a16207]", badge: "bg-[#fef9c3] text-[#a16207]" },
+  no: { label: "Don't Recommend", bg: "bg-[#fafafa]", border: "border-border/30", text: "text-muted-foreground", badge: "bg-muted/70 text-muted-foreground" },
 } as const
 
-function ScoredJobsList({
-  jobs,
-  scanning,
-  recommendCount,
-  maybeCount,
-  hasEligibleJobs,
-  buttonsDisabled,
-  onApplyRecommended,
-  onApplyAll,
-}: {
-  jobs: ScoredJob[]
-  scanning: boolean
-  recommendCount: number
-  maybeCount: number
-  hasEligibleJobs: boolean
-  buttonsDisabled: boolean
-  onApplyRecommended: () => void
-  onApplyAll: () => void
-}) {
+function ScoredJobsList({ jobs, scanning }: { jobs: ScoredJob[]; scanning: boolean }) {
+  const tiers: Array<"recommend" | "maybe" | "no"> = ["recommend", "maybe", "no"]
   const eligible = jobs.filter((j) => j.eligible)
   const ineligible = jobs.filter((j) => !j.eligible)
 
-  const recommendJobs = eligible.filter((j) => j.tier === "recommend")
-  const maybeJobs = eligible.filter((j) => j.tier === "maybe")
-  const noJobs = eligible.filter((j) => j.tier === "no")
-
   return (
     <div className="space-y-3">
-      {/* Header */}
-      <div className="flex items-center justify-between px-0.5">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/70">
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground/80">
           Scored Jobs
         </p>
-        <span className="rounded-md bg-muted/60 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
+        <span className="text-[11px] tabular-nums text-muted-foreground/60">
           {jobs.length} found
         </span>
       </div>
 
-      {/* RECOMMEND tier */}
-      {recommendJobs.length > 0 && (
-        <TierSection tier="recommend" jobs={recommendJobs} />
-      )}
+      {tiers.map((tier) => {
+        const tierJobs = eligible.filter((j) => j.tier === tier)
+        if (tierJobs.length === 0) return null
+        const config = TIER_CONFIG[tier]
 
-      {/* Apply Recommended -- immediately after RECOMMEND list */}
-      <button
-        type="button"
-        className={cn(
-          "flex h-10 w-full items-center justify-center gap-2 rounded-xl text-[13px] font-bold tracking-wide transition-all",
-          !buttonsDisabled && recommendCount > 0
-            ? "bg-[#16a34a] text-white shadow-sm shadow-[#16a34a]/15 hover:bg-[#15803d] hover:shadow-md hover:shadow-[#16a34a]/20"
-            : "cursor-not-allowed bg-muted text-muted-foreground"
-        )}
-        onClick={onApplyRecommended}
-        disabled={buttonsDisabled || recommendCount === 0}
-      >
-        Apply Recommended ({recommendCount})
-      </button>
-
-      {/* MAYBE tier */}
-      {maybeJobs.length > 0 && (
-        <TierSection tier="maybe" jobs={maybeJobs} />
-      )}
-
-      {/* Apply All -- below MAYBE, above DON'T RECOMMEND */}
-      <button
-        type="button"
-        className={cn(
-          "flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-[13px] font-bold tracking-wide transition-all",
-          !buttonsDisabled && hasEligibleJobs
-            ? "border-foreground/15 bg-foreground text-background shadow-sm shadow-foreground/10 hover:opacity-90"
-            : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
-        )}
-        onClick={!buttonsDisabled ? onApplyAll : undefined}
-        disabled={buttonsDisabled || !hasEligibleJobs}
-      >
-        Apply All ({recommendCount + maybeCount})
-      </button>
-
-      {/* Thin separator before "no" tier */}
-      {noJobs.length > 0 && <div className="h-px bg-border/50" />}
-
-      {/* NO tier */}
-      {noJobs.length > 0 && (
-        <TierSection tier="no" jobs={noJobs} />
-      )}
+        return (
+          <div key={tier} className={cn("overflow-hidden rounded-xl border", config.border)}>
+            {/* Tier header */}
+            <div className={cn("flex items-center justify-between px-3.5 py-2.5", config.bg)}>
+              <span className={cn("text-[11px] font-semibold uppercase tracking-wider", config.text)}>
+                {config.label}
+              </span>
+              <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", config.badge)}>
+                {tierJobs.length}
+              </span>
+            </div>
+            {/* Job rows */}
+            <div className="divide-y divide-border/40">
+              {tierJobs.map((job) => (
+                <div key={job.id} className={cn("flex items-center gap-3 px-3.5 py-2.5 transition-colors duration-150", tier === "recommend" && "bg-[#fafffe]")}>
+                  {/* Layer indicator */}
+                  <span className={cn(
+                    "flex h-1.5 w-1.5 shrink-0 rounded-full transition-colors duration-200",
+                    job.layer === 2 ? "bg-[#16a34a]" : "bg-[#d1d5db]"
+                  )} title={job.layer === 2 ? "Fully enriched" : "Preliminary"} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-medium text-foreground">{job.title}</p>
+                    <div className="mt-0.5 flex items-center gap-1.5">
+                      <span className="truncate text-[11px] text-muted-foreground">{job.company}</span>
+                      <span className="text-[10px] text-muted-foreground/30">{"/"}</span>
+                      <span className="truncate text-[11px] text-muted-foreground/60">{job.location}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
 
       {/* Ineligible section */}
       {ineligible.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-border/20">
-          <div className="flex items-center justify-between bg-muted/20 px-3.5 py-2">
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">
+        <div className="overflow-hidden rounded-xl border border-border/30 opacity-60">
+          <div className="flex items-center justify-between bg-muted/30 px-3.5 py-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
               Ineligible
             </span>
-            <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground/60">
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
               {ineligible.length}
             </span>
           </div>
-          <div className="divide-y divide-border/20">
+          <div className="divide-y divide-border/30">
             {ineligible.map((job) => (
-              <div key={job.id} className="group relative px-3.5 py-2 opacity-50 transition-opacity hover:opacity-70" title={job.ineligibleReason || "Ineligible"}>
-                <p className="truncate text-[13px] font-medium text-muted-foreground">{job.title}</p>
+              <div key={job.id} className="group relative px-3.5 py-2.5" title={job.ineligibleReason || "Ineligible"}>
+                <p className="truncate text-sm font-medium text-muted-foreground">{job.title}</p>
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-[11px] text-muted-foreground/60">{job.company}</span>
-                  <span className="text-[9px] text-muted-foreground/30">{"\u00b7"}</span>
-                  <span className="truncate text-[11px] text-muted-foreground/50">{job.location}</span>
+                  <span className="truncate text-xs text-muted-foreground/60">{job.company}</span>
+                  <span className="text-[10px] text-muted-foreground/30">{"/"}</span>
+                  <span className="truncate text-xs text-muted-foreground/50">{job.location}</span>
                 </div>
                 {job.ineligibleReason && (
                   <div className="pointer-events-none absolute inset-x-0 bottom-full z-10 mx-2 mb-1 hidden rounded-lg border border-border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground shadow-lg group-hover:block">
@@ -1609,63 +1803,14 @@ function ScoredJobsList({
       )}
 
       {scanning && (
-        <div className="flex items-center justify-center gap-2 py-1">
+        <div className="flex items-center justify-center gap-2 py-2">
           <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-50" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-60" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />
           </span>
-          <span className="text-[11px] text-muted-foreground/60">Scoring in progress...</span>
+          <span className="text-xs text-muted-foreground">Scoring in progress...</span>
         </div>
       )}
-    </div>
-  )
-}
-
-/* ─── Tier Section (reusable for each tier) ────────────── */
-
-function TierSection({ tier, jobs }: { tier: "recommend" | "maybe" | "no"; jobs: ScoredJob[] }) {
-  const config = TIER_CONFIG[tier]
-  return (
-    <div className={cn("overflow-hidden rounded-xl border", config.border)}>
-      <div className={cn("flex items-center justify-between px-3.5 py-2", config.bg)}>
-        <span className={cn("text-[10px] font-bold uppercase tracking-[0.12em]", config.text)}>
-          {config.label}
-        </span>
-        <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums", config.badge)}>
-          {jobs.length}
-        </span>
-      </div>
-      <div className="divide-y divide-border/30">
-        {jobs.map((job) => (
-          <div
-            key={job.id}
-            className={cn(
-              "flex items-center gap-3 px-3.5 py-2.5 transition-all",
-              tier === "recommend" ? "bg-[#fafffe] hover:bg-[#f0fdf4]/60" : "hover:bg-muted/30"
-            )}
-          >
-            {/* Layer indicator */}
-            <span className="relative flex h-2 w-2 shrink-0">
-              {job.layer === 2 ? (
-                <span className="inline-flex h-2 w-2 rounded-full bg-[#16a34a]" />
-              ) : (
-                <>
-                  <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-[#d1d5db] opacity-40" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#d1d5db]" />
-                </>
-              )}
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[13px] font-semibold text-foreground">{job.title}</p>
-              <div className="flex items-center gap-1.5">
-                <span className="truncate text-[11px] text-muted-foreground">{job.company}</span>
-                <span className="text-[9px] text-muted-foreground/30">{"\u00b7"}</span>
-                <span className="truncate text-[11px] text-muted-foreground/60">{job.location}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
     </div>
   )
 }
