@@ -1040,39 +1040,44 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     </div>
 
                     {/* ─── Confirm Your Details (inline) ────────── */}
-                    <div className="space-y-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-                        Work Authorization
-                      </p>
+                    <div className="space-y-3">
 
-                      {/* Country rows */}
-                      <div className="space-y-2">
-                        {matrixCountries.map((country) => (
-                          <div key={country} className="rounded-xl border border-border/60 bg-background">
-                            <div className="flex items-center justify-between px-3.5 py-2 text-sm font-semibold text-foreground">
-                              {country}
-                              {matrixCountries.length > 1 && !isRunning && (
-                                <button
-                                  type="button"
-                                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
-                                  onClick={() => {
-                                    setMatrixCountries((prev) => prev.filter((c) => c !== country))
-                                    setMatrix((prev) => { const next = { ...prev }; delete next[country]; return next })
-                                  }}
-                                >
-                                  <X className="h-3 w-3" strokeWidth={1.5} />
-                                </button>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-px border-t border-border/40 bg-border/40">
-                              {/* Work Auth toggle */}
-                              <div className="bg-background px-3 py-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Work Auth</p>
-                                <div className="mt-1.5 flex overflow-hidden rounded-lg border border-border/60">
+                      {/* ── Work Authorization Card ──────────────── */}
+                      <div className="rounded-xl border border-border/60 bg-[#f8f9fb]">
+                        <div className="px-3.5 py-2.5">
+                          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                            Work Authorization
+                          </p>
+                        </div>
+                        <div className="h-px bg-border/50" />
+
+                        {/* Country rows */}
+                        <div className="divide-y divide-border/40 px-3.5">
+                          {matrixCountries.map((country) => (
+                            <div key={country} className="py-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-foreground">{country}</span>
+                                {matrixCountries.length > 1 && !isRunning && (
+                                  <button
+                                    type="button"
+                                    className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
+                                    onClick={() => {
+                                      setMatrixCountries((prev) => prev.filter((c) => c !== country))
+                                      setMatrix((prev) => { const next = { ...prev }; delete next[country]; return next })
+                                    }}
+                                  >
+                                    <X className="h-3 w-3" strokeWidth={1.5} />
+                                  </button>
+                                )}
+                              </div>
+                              {/* Row 1: Work Auth */}
+                              <div className="mt-2.5 flex items-center justify-between">
+                                <p className="text-xs font-medium text-muted-foreground">Work Authorization</p>
+                                <div className="flex overflow-hidden rounded-lg border border-border/60">
                                   <button
                                     type="button"
                                     className={cn(
-                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
                                       matrix[country]?.workAuth === "yes"
                                         ? "bg-[#dcfce7] text-[#15803d]"
                                         : "bg-background text-muted-foreground hover:bg-muted/50"
@@ -1086,7 +1091,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                   <button
                                     type="button"
                                     className={cn(
-                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
                                       matrix[country]?.workAuth === "no"
                                         ? "bg-[#fee2e2] text-[#dc2626]"
                                         : "bg-background text-muted-foreground hover:bg-muted/50"
@@ -1098,14 +1103,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                   </button>
                                 </div>
                               </div>
-                              {/* Sponsorship toggle */}
-                              <div className="bg-background px-3 py-2">
-                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Sponsorship</p>
-                                <div className="mt-1.5 flex overflow-hidden rounded-lg border border-border/60">
+                              {/* Row 2: Sponsorship */}
+                              <div className="mt-2 flex items-center justify-between">
+                                <p className="text-xs font-medium text-muted-foreground">Sponsorship</p>
+                                <div className="flex overflow-hidden rounded-lg border border-border/60">
                                   <button
                                     type="button"
                                     className={cn(
-                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
                                       matrix[country]?.sponsorship === "yes"
                                         ? "bg-[#dcfce7] text-[#15803d]"
                                         : "bg-background text-muted-foreground hover:bg-muted/50"
@@ -1119,7 +1124,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                   <button
                                     type="button"
                                     className={cn(
-                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      "flex h-7 w-[72px] items-center justify-center text-[11px] font-semibold transition-all duration-150",
                                       matrix[country]?.sponsorship === "no"
                                         ? "bg-[#fee2e2] text-[#dc2626]"
                                         : "bg-background text-muted-foreground hover:bg-muted/50"
@@ -1132,42 +1137,43 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+
+                        {/* + Add Country */}
+                        <div className="border-t border-border/40 px-3.5 py-2.5">
+                          <AnimatePresence>
+                            {addingCountry ? (
+                              <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                                <div className="flex gap-2">
+                                  <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-background text-sm placeholder:text-muted-foreground/60" autoFocus />
+                                  <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-sm font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
+                                  <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-sm text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
+                                </div>
+                              </motion.div>
+                            ) : (
+                              <button
+                                type="button"
+                                className="flex h-7 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 bg-background text-xs font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground"
+                                onClick={() => setAddingCountry(true)}
+                              >
+                                <Plus className="h-3 w-3" strokeWidth={1.5} />
+                                Add Country
+                              </button>
+                            )}
+                          </AnimatePresence>
+                        </div>
                       </div>
 
-                      {/* + Add Country */}
-                      <AnimatePresence>
-                        {addingCountry ? (
-                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
-                            <div className="flex gap-2">
-                              <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-muted/50 text-sm placeholder:text-muted-foreground/60" autoFocus />
-                              <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-sm font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
-                              <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-sm text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
-                            </div>
-                          </motion.div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 text-xs font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground"
-                            onClick={() => setAddingCountry(true)}
-                          >
-                            <Plus className="h-3 w-3" strokeWidth={1.5} />
-                            Add Country
-                          </button>
-                        )}
-                      </AnimatePresence>
-
-                      {/* EEO Section */}
-                      <div className="mt-1 rounded-xl border border-border/60 bg-background">
-                        <div className="flex items-center justify-between px-3.5 py-2.5">
-                          <div className="flex items-center gap-2.5">
-                            <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-                            <span className="text-[11px] font-semibold uppercase tracking-widest text-foreground">EEO Disclosure</span>
-                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Optional</span>
-                          </div>
+                      {/* ── EEO Disclosure Card ─────────────────── */}
+                      <div className="rounded-xl border border-border/60 bg-[#f8f9fb]">
+                        <div className="flex items-center gap-2.5 px-3.5 py-2.5">
+                          <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
+                          <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">EEO Disclosure</span>
+                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Optional</span>
                         </div>
-                        <div className="border-t border-border/40 px-3.5 py-2.5">
+                        <div className="h-px bg-border/50" />
+                        <div className="px-3.5 py-2.5">
                           <label className="flex cursor-pointer items-center gap-2.5">
                             <input
                               type="checkbox"
@@ -1186,10 +1192,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                 transition={{ duration: 0.18 }}
                                 className="overflow-hidden"
                               >
-                                <div className="mt-3 grid grid-cols-2 gap-3">
+                                <div className="mt-3 space-y-2.5">
                                   <div>
                                     <label className="text-xs font-medium text-muted-foreground">Gender</label>
-                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoGender} onChange={(e) => setEeoGender(e.target.value)}>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoGender} onChange={(e) => setEeoGender(e.target.value)}>
                                       <option value="">Select...</option>
                                       <option value="male">Male</option>
                                       <option value="female">Female</option>
@@ -1199,7 +1205,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                   </div>
                                   <div>
                                     <label className="text-xs font-medium text-muted-foreground">Ethnicity</label>
-                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoRace} onChange={(e) => setEeoRace(e.target.value)}>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoRace} onChange={(e) => setEeoRace(e.target.value)}>
                                       <option value="">Select...</option>
                                       <option value="white">White</option>
                                       <option value="black">Black or African American</option>
@@ -1213,7 +1219,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                   </div>
                                   <div>
                                     <label className="text-xs font-medium text-muted-foreground">Veteran Status</label>
-                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoVeteran} onChange={(e) => setEeoVeteran(e.target.value)}>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoVeteran} onChange={(e) => setEeoVeteran(e.target.value)}>
                                       <option value="">Select...</option>
                                       <option value="veteran">I am a veteran</option>
                                       <option value="not-veteran">I am not a veteran</option>
@@ -1222,7 +1228,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                                   </div>
                                   <div>
                                     <label className="text-xs font-medium text-muted-foreground">Disability</label>
-                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoDisability} onChange={(e) => setEeoDisability(e.target.value)}>
+                                    <select className="mt-1 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoDisability} onChange={(e) => setEeoDisability(e.target.value)}>
                                       <option value="">Select...</option>
                                       <option value="yes">Yes, I have a disability</option>
                                       <option value="no">No, I do not have a disability</option>
