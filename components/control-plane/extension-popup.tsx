@@ -176,9 +176,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [parsingStatus, setParsingStatus] = useState<"idle" | "parsing" | "done" | "syncing">("idle")
   const [resumeName, setResumeName] = useState<string | null>(null)
 
-  // Preferences modal (between Step 1 & 2)
-  const [preferencesModalOpen, setPreferencesModalOpen] = useState(false)
-  const [workAuthNeed, setWorkAuthNeed] = useState<"no-need" | "need">("no-need")
+  // Preferences (inline in Step 1 after parsing)
+  const [eeoPreferNot, setEeoPreferNot] = useState(true)
   const [eeoGender, setEeoGender] = useState("")
   const [eeoRace, setEeoRace] = useState("")
   const [eeoVeteran, setEeoVeteran] = useState("")
@@ -201,7 +200,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [matrix, setMatrix] = useState<MatrixState>({})
   const [addingCountry, setAddingCountry] = useState(false)
   const [newCountryName, setNewCountryName] = useState("")
-  const [eeoExpanded, setEeoExpanded] = useState(false)
+
 
   // Step 3
   const [topPositions, setTopPositions] = useState(10)
@@ -299,13 +298,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setDetectedCountries([])
     setMatrixCountries([])
     setMatrix({})
-    setPreferencesModalOpen(false)
-    setWorkAuthNeed("no-need")
+    setAddingCountry(false)
+    setNewCountryName("")
+    setEeoPreferNot(true)
     setEeoGender("")
     setEeoRace("")
     setEeoVeteran("")
     setEeoDisability("")
-    setEeoExpanded(false)
+
     setRunState("idle")
     setConfirmModalOpen(false)
     setConfirmAcknowledged(false)
@@ -354,9 +354,8 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
       setMatrix(
         countries.reduce((acc, c) => ({ ...acc, [c]: { workAuth: "yes", sponsorship: "yes" } }), {} as MatrixState)
       )
-      // Show preferences modal instead of auto-advancing
-      setSteps((prev) => ({ ...prev, step1: "completed" }))
-      setTimeout(() => setPreferencesModalOpen(true), 400)
+      // Stay in step 1 so user sees inline "Confirm Your Details"
+      setSteps((prev) => ({ ...prev, step1: "in-progress" }))
     }, 2500)
   }, [])
 
@@ -390,37 +389,18 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
       setMatrix(
         countries.reduce((acc, c) => ({ ...acc, [c]: { workAuth: "yes", sponsorship: "yes" } }), {} as MatrixState)
       )
-      setSteps((prev) => ({ ...prev, step1: "completed" }))
-      setTimeout(() => setPreferencesModalOpen(true), 400)
+      setSteps((prev) => ({ ...prev, step1: "in-progress" }))
     }, 3000)
   }, [])
 
-  const handleSavePreferences = useCallback(() => {
-    // Update matrix based on work auth toggle
-    if (workAuthNeed === "no-need") {
-      setMatrix((prev) => {
-        const updated: MatrixState = {}
-        for (const c of Object.keys(prev)) {
-          updated[c] = { workAuth: "yes", sponsorship: "yes" }
-        }
-        return updated
-      })
-    } else {
-      setMatrix((prev) => {
-        const updated: MatrixState = {}
-        for (const c of Object.keys(prev)) {
-          updated[c] = { workAuth: "no", sponsorship: "no" }
-        }
-        return updated
-      })
-    }
-    setPreferencesModalOpen(false)
+  const handleConfirmDetails = useCallback(() => {
     setSteps((prev) => ({
       ...prev,
+      step1: "completed",
       step2: prev.step2 === "not-started" ? "in-progress" : prev.step2,
     }))
     setTimeout(() => setActiveStep(2), 200)
-  }, [workAuthNeed])
+  }, [])
 
   const handleUploadNewResume = useCallback(() => {
     setParsingStatus("idle")
@@ -558,7 +538,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="flex max-h-[600px] w-[400px] flex-col border-l border-border/60 bg-[#fcfcfd] p-0 shadow-2xl sm:w-[400px]"
+        className="flex h-full w-full max-w-none flex-col border-l border-border/60 bg-[#fcfcfd] p-0 shadow-2xl sm:max-w-none"
       >
         {/* Hidden file input */}
         <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx,.txt" className="hidden" onChange={handleFileChange} />
@@ -999,7 +979,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </AnimatePresence>
 
             {/* ─── Steps ──────────────────────────────────── */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto">
 
               {/* Step 1: Upload Resume */}
               <StepAccordion
@@ -1047,13 +1027,223 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 )}
 
                 {parsingStatus === "done" && resumeName && (
-                  <div className="flex items-center gap-3 rounded-xl border border-[#bbf7d0]/60 bg-[#f0fdf4] px-4 py-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#16a34a]/10">
-                      <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2.5} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-[#15803d]">Resume parsed</p>
-                      <p className="truncate text-sm text-[#16a34a]/70">{resumeName}</p>
+                  <div className="space-y-5">
+                    {/* Resume parsed confirmation */}
+                    <div className="flex items-center gap-3 rounded-xl border border-[#bbf7d0]/60 bg-[#f0fdf4] px-4 py-3">
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#16a34a]/10">
+                        <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2.5} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-[#15803d]">Resume parsed</p>
+                        <p className="truncate text-sm text-[#16a34a]/70">{resumeName}</p>
+                      </div>
+                    </div>
+
+                    {/* ─── Confirm Your Details (inline) ────────── */}
+                    <div className="space-y-4">
+                      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        Work Authorization
+                      </p>
+
+                      {/* Country rows */}
+                      <div className="space-y-2">
+                        {matrixCountries.map((country) => (
+                          <div key={country} className="rounded-xl border border-border/60 bg-background">
+                            <div className="flex items-center justify-between px-3.5 py-2 text-sm font-semibold text-foreground">
+                              {country}
+                              {matrixCountries.length > 1 && !isRunning && (
+                                <button
+                                  type="button"
+                                  className="flex h-5 w-5 items-center justify-center rounded text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground"
+                                  onClick={() => {
+                                    setMatrixCountries((prev) => prev.filter((c) => c !== country))
+                                    setMatrix((prev) => { const next = { ...prev }; delete next[country]; return next })
+                                  }}
+                                >
+                                  <X className="h-3 w-3" strokeWidth={1.5} />
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-px border-t border-border/40 bg-border/40">
+                              {/* Work Auth toggle */}
+                              <div className="bg-background px-3 py-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Work Auth</p>
+                                <div className="mt-1.5 flex overflow-hidden rounded-lg border border-border/60">
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      matrix[country]?.workAuth === "yes"
+                                        ? "bg-[#dcfce7] text-[#15803d]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "workAuth")}
+                                    disabled={isRunning}
+                                  >
+                                    No Need
+                                  </button>
+                                  <div className="w-px bg-border/60" />
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      matrix[country]?.workAuth === "no"
+                                        ? "bg-[#fee2e2] text-[#dc2626]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "workAuth")}
+                                    disabled={isRunning}
+                                  >
+                                    Need
+                                  </button>
+                                </div>
+                              </div>
+                              {/* Sponsorship toggle */}
+                              <div className="bg-background px-3 py-2">
+                                <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">Sponsorship</p>
+                                <div className="mt-1.5 flex overflow-hidden rounded-lg border border-border/60">
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      matrix[country]?.sponsorship === "yes"
+                                        ? "bg-[#dcfce7] text-[#15803d]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "sponsorship")}
+                                    disabled={isRunning}
+                                  >
+                                    No Need
+                                  </button>
+                                  <div className="w-px bg-border/60" />
+                                  <button
+                                    type="button"
+                                    className={cn(
+                                      "flex h-7 flex-1 items-center justify-center text-xs font-semibold transition-all duration-150",
+                                      matrix[country]?.sponsorship === "no"
+                                        ? "bg-[#fee2e2] text-[#dc2626]"
+                                        : "bg-background text-muted-foreground hover:bg-muted/50"
+                                    )}
+                                    onClick={() => toggleMatrixCell(country, "sponsorship")}
+                                    disabled={isRunning}
+                                  >
+                                    Need
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* + Add Country */}
+                      <AnimatePresence>
+                        {addingCountry ? (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.15 }} className="overflow-hidden">
+                            <div className="flex gap-2">
+                              <Input type="text" value={newCountryName} onChange={(e) => setNewCountryName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addCountryToMatrix() }} placeholder="Country name" className="h-8 flex-1 rounded-lg border-border/60 bg-muted/50 text-sm placeholder:text-muted-foreground/60" autoFocus />
+                              <button type="button" className="flex h-8 items-center rounded-lg bg-foreground px-3 text-sm font-semibold text-background transition-all hover:opacity-90" onClick={addCountryToMatrix}>Add</button>
+                              <button type="button" className="flex h-8 items-center rounded-lg border border-border/60 px-3 text-sm text-muted-foreground hover:border-border" onClick={() => { setAddingCountry(false); setNewCountryName("") }}>Cancel</button>
+                            </div>
+                          </motion.div>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/60 text-xs font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground"
+                            onClick={() => setAddingCountry(true)}
+                          >
+                            <Plus className="h-3 w-3" strokeWidth={1.5} />
+                            Add Country
+                          </button>
+                        )}
+                      </AnimatePresence>
+
+                      {/* EEO Section */}
+                      <div className="mt-1 rounded-xl border border-border/60 bg-background">
+                        <div className="flex items-center justify-between px-3.5 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
+                            <span className="text-[11px] font-semibold uppercase tracking-widest text-foreground">EEO Disclosure</span>
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Optional</span>
+                          </div>
+                        </div>
+                        <div className="border-t border-border/40 px-3.5 py-2.5">
+                          <label className="flex cursor-pointer items-center gap-2.5">
+                            <input
+                              type="checkbox"
+                              checked={eeoPreferNot}
+                              onChange={(e) => setEeoPreferNot(e.target.checked)}
+                              className="h-3.5 w-3.5 rounded border-border accent-foreground"
+                            />
+                            <span className="text-xs text-muted-foreground">{"Prefer not to say (recommended)"}</span>
+                          </label>
+                          <AnimatePresence>
+                            {!eeoPreferNot && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={{ duration: 0.18 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="mt-3 grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Gender</label>
+                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoGender} onChange={(e) => setEeoGender(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="male">Male</option>
+                                      <option value="female">Female</option>
+                                      <option value="non-binary">Non-binary</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Ethnicity</label>
+                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoRace} onChange={(e) => setEeoRace(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="white">White</option>
+                                      <option value="black">Black or African American</option>
+                                      <option value="hispanic">Hispanic or Latino</option>
+                                      <option value="asian">Asian</option>
+                                      <option value="native">Native American</option>
+                                      <option value="pacific">Pacific Islander</option>
+                                      <option value="two-or-more">Two or more races</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Veteran Status</label>
+                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoVeteran} onChange={(e) => setEeoVeteran(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="veteran">I am a veteran</option>
+                                      <option value="not-veteran">I am not a veteran</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="text-xs font-medium text-muted-foreground">Disability</label>
+                                    <select className="mt-1 h-7 w-full rounded-lg border border-border/60 bg-background px-2 text-xs text-foreground outline-none transition-colors focus:border-[#3b82f6]" value={eeoDisability} onChange={(e) => setEeoDisability(e.target.value)}>
+                                      <option value="">Select...</option>
+                                      <option value="yes">Yes, I have a disability</option>
+                                      <option value="no">No, I do not have a disability</option>
+                                      <option value="prefer-not">Prefer not to say</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </div>
+
+                      {/* Continue button */}
+                      <button
+                        type="button"
+                        className="flex h-10 w-full items-center justify-center rounded-xl bg-foreground text-sm font-bold text-background shadow-sm shadow-black/10 transition-all hover:opacity-90"
+                        onClick={handleConfirmDetails}
+                      >
+                        {"Continue \u2192"}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -1373,156 +1563,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               )}
             </AnimatePresence>
 
-            {/* ─── Preferences Modal (Confirmation Gate) ───── */}
-            <AnimatePresence>
-              {preferencesModalOpen && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.25 }}
-                  className="absolute inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl"
-                >
-                  <div className="flex-1 overflow-y-auto px-6 py-8">
-                    <h3 className="text-[17px] font-bold tracking-tight text-foreground">Confirm Your Preferences</h3>
 
-                    {/* Section A: Work Authorization & Sponsorship */}
-                    <div className="mt-6">
-                      <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">Work Authorization & Sponsorship</p>
-                      <div className="mt-3 flex overflow-hidden rounded-xl border border-border/60">
-                        <button
-                          type="button"
-                          className={cn(
-                            "flex h-11 flex-1 items-center justify-center text-sm font-semibold transition-all duration-200",
-                            workAuthNeed === "no-need"
-                              ? "bg-[#dcfce7] text-[#15803d]"
-                              : "bg-background text-muted-foreground hover:bg-muted/50"
-                          )}
-                          onClick={() => setWorkAuthNeed("no-need")}
-                        >
-                          No Need
-                        </button>
-                        <div className="w-px bg-border/60" />
-                        <button
-                          type="button"
-                          className={cn(
-                            "flex h-11 flex-1 items-center justify-center text-sm font-semibold transition-all duration-200",
-                            workAuthNeed === "need"
-                              ? "bg-[#fee2e2] text-[#dc2626]"
-                              : "bg-background text-muted-foreground hover:bg-muted/50"
-                          )}
-                          onClick={() => setWorkAuthNeed("need")}
-                        >
-                          Need
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Section B: EEO Disclosure */}
-                    <div className="mt-7">
-                      <button
-                        type="button"
-                        className="flex w-full items-center justify-between"
-                        onClick={() => setEeoExpanded(!eeoExpanded)}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <Shield className="h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.5} />
-                          <span className="text-[11px] font-semibold uppercase tracking-widest text-foreground">EEO Disclosure</span>
-                          <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">Optional</span>
-                        </div>
-                        <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", eeoExpanded && "rotate-180")} strokeWidth={1.5} />
-                      </button>
-                      <p className="mt-2 text-xs leading-relaxed text-muted-foreground/70">
-                        {"We default to \u201CPrefer Not to Say\u201D for EEO disclosures. Click above if you wish to provide specific details."}
-                      </p>
-                      <AnimatePresence>
-                        {eeoExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.18 }}
-                            className="overflow-hidden"
-                          >
-                            <div className="mt-3 grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Gender</label>
-                                <select
-                                  className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#3b82f6]"
-                                  value={eeoGender}
-                                  onChange={(e) => setEeoGender(e.target.value)}
-                                >
-                                  <option value="">Select...</option>
-                                  <option value="male">Male</option>
-                                  <option value="female">Female</option>
-                                  <option value="non-binary">Non-binary</option>
-                                  <option value="prefer-not">Prefer not to say</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Ethnicity</label>
-                                <select
-                                  className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#3b82f6]"
-                                  value={eeoRace}
-                                  onChange={(e) => setEeoRace(e.target.value)}
-                                >
-                                  <option value="">Select...</option>
-                                  <option value="white">White</option>
-                                  <option value="black">Black or African American</option>
-                                  <option value="hispanic">Hispanic or Latino</option>
-                                  <option value="asian">Asian</option>
-                                  <option value="native">Native American</option>
-                                  <option value="pacific">Pacific Islander</option>
-                                  <option value="two-or-more">Two or more races</option>
-                                  <option value="prefer-not">Prefer not to say</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Veteran Status</label>
-                                <select
-                                  className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#3b82f6]"
-                                  value={eeoVeteran}
-                                  onChange={(e) => setEeoVeteran(e.target.value)}
-                                >
-                                  <option value="">Select...</option>
-                                  <option value="veteran">I am a veteran</option>
-                                  <option value="not-veteran">I am not a veteran</option>
-                                  <option value="prefer-not">Prefer not to say</option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="text-sm font-medium text-muted-foreground">Disability</label>
-                                <select
-                                  className="mt-1.5 h-8 w-full rounded-lg border border-border/60 bg-background px-2.5 text-sm text-foreground outline-none transition-colors focus:border-[#3b82f6]"
-                                  value={eeoDisability}
-                                  onChange={(e) => setEeoDisability(e.target.value)}
-                                >
-                                  <option value="">Select...</option>
-                                  <option value="yes">Yes, I have a disability</option>
-                                  <option value="no">No, I do not have a disability</option>
-                                  <option value="prefer-not">Prefer not to say</option>
-                                </select>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Save & Continue */}
-                  <div className="shrink-0 border-t border-border px-6 py-4">
-                    <button
-                      type="button"
-                      className="flex h-11 w-full items-center justify-center rounded-xl bg-foreground text-sm font-bold text-background shadow-lg shadow-black/10 transition-all hover:opacity-90"
-                      onClick={handleSavePreferences}
-                    >
-                      {"Save & Continue"}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
 
             {/* ─── Confirmation Modal (frosted glass) ─────── */}
             <AnimatePresence>
