@@ -196,7 +196,6 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [eeoExpanded, setEeoExpanded] = useState(false)
 
   // Step 3
-  const [topPositions, setTopPositions] = useState(10)
   const [runState, setRunState] = useState<RunState>("idle")
   const [confirmModalOpen, setConfirmModalOpen] = useState(false)
   const [confirmAcknowledged, setConfirmAcknowledged] = useState(false)
@@ -295,10 +294,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     setRunState("idle")
     setConfirmModalOpen(false)
     setConfirmAcknowledged(false)
-    setTopPositions(10)
     setScoredJobs([])
     setScanning(false)
     setScoringComplete(false)
+    scanTriggeredRef.current = false
   }, [])
 
   const handleStartFresh = useCallback(() => {
@@ -511,6 +510,48 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
     if (field === "type") return override?.type || [base.type]
     return override?.[field] ?? base[field]
   }
+
+  /* ─── Auto-trigger scan when Step 3 becomes active ──── */
+
+  const scanTriggeredRef = useRef(false)
+
+  useEffect(() => {
+    if (steps.step3 === "in-progress" && activeStep === 3 && !scanTriggeredRef.current && !scanning && !scoringComplete) {
+      scanTriggeredRef.current = true
+      // Small delay for the accordion to open before scan starts
+      const t = setTimeout(() => handleScanJobs(), 600)
+      return () => clearTimeout(t)
+    }
+    if (steps.step3 === "not-started") {
+      scanTriggeredRef.current = false
+    }
+  }, [steps.step3, activeStep, scanning, scoringComplete, handleScanJobs])
+
+  /* ─── Scan status messages ──────────────────────────── */
+
+  const [scanStatus, setScanStatus] = useState("")
+
+  useEffect(() => {
+    if (!scanning) {
+      if (scoringComplete) setScanStatus("")
+      return
+    }
+    const messages = [
+      "Accessing LinkedIn data...",
+      "Analyzing job requirements...",
+      "Matching against your profile...",
+      `Filtering ${MOCK_SCORED_JOBS.length} identified positions...`,
+      "Scoring compatibility...",
+      "Enriching top matches...",
+    ]
+    let i = 0
+    setScanStatus(messages[0])
+    const interval = setInterval(() => {
+      i = (i + 1) % messages.length
+      setScanStatus(messages[i])
+    }, 1400)
+    return () => clearInterval(interval)
+  }, [scanning, scoringComplete])
 
   /* ─── Step toggle (collapse on re-click) ───────────── */
 
@@ -821,43 +862,43 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                       BETA
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {/* Start Fresh */}
                     <button
                       type="button"
-                      className="flex h-8 items-center gap-1.5 rounded-full border border-border/60 bg-background px-3 text-xs font-medium text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm"
+                      className="flex h-7 items-center gap-1.5 rounded-full border border-border/40 bg-background px-2.5 text-[11px] font-medium text-muted-foreground/70 transition-all duration-150 hover:border-border/60 hover:text-foreground"
                       onClick={handleStartFresh}
                     >
-                      <RefreshCw className="h-3 w-3" strokeWidth={1.5} />
-                      Start Fresh
+                      <RefreshCw className="h-2.5 w-2.5" strokeWidth={1.5} />
+                      Reset
                     </button>
                     {/* Balance pill */}
                     <button
                       ref={balanceRef}
                       type="button"
                       className={cn(
-                        "group flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-all",
+                        "group flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium transition-all duration-150",
                         quotaIsZero
-                          ? "border-red-200 bg-red-50 text-red-600 hover:border-red-300"
-                          : "border-border/60 bg-background text-foreground hover:border-border hover:shadow-sm"
+                          ? "border-red-200/80 bg-red-50 text-red-600 hover:border-red-300"
+                          : "border-border/40 bg-background text-foreground hover:border-border/60"
                       )}
                       onClick={() => setPopoverOpen(!popoverOpen)}
                     >
-                      <span className="text-sm text-muted-foreground">Credits:</span>
-                      <span className="font-mono text-sm font-bold tabular-nums">{quota}</span>
+                      <span className="text-[11px] text-muted-foreground/60">Credits</span>
+                      <span className="font-mono text-[12px] font-bold tabular-nums">{quota}</span>
                     </button>
                   </div>
                 </div>
               </SheetHeader>
 
               {/* Quota progress bar */}
-              <div className="mt-3.5">
-                <div className="h-[3px] w-full overflow-hidden rounded-full bg-muted">
+              <div className="mt-3">
+                <div className="h-[2px] w-full overflow-hidden rounded-full bg-border/40">
                   <motion.div
-                    className={cn("h-full rounded-full", quotaIsZero ? "bg-red-500" : "bg-gradient-to-r from-[#3b82f6] to-[#60a5fa]")}
+                    className={cn("h-full rounded-full", quotaIsZero ? "bg-red-500" : "bg-[#3b82f6]")}
                     initial={false}
                     animate={{ width: `${(quota / 15) * 100}%` }}
-                    transition={{ duration: 0.4, ease: [0.25, 0.1, 0.25, 1] }}
+                    transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
                   />
                 </div>
               </div>
@@ -965,7 +1006,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </AnimatePresence>
 
             {/* ─── Steps ──────────────────────────────────── */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 overflow-y-auto scroll-smooth" style={{ scrollbarGutter: "stable" }}>
 
               {/* Step 1: Upload Resume */}
               <StepAccordion
@@ -1013,36 +1054,36 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 )}
 
                 {parsingStatus === "done" && resumeName && (
-                  <div className="flex items-center gap-3 rounded-xl border border-[#bbf7d0]/60 bg-[#f0fdf4] px-4 py-3">
-                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#16a34a]/10">
-                      <Check className="h-3.5 w-3.5 text-[#16a34a]" strokeWidth={2.5} />
+                  <div className="flex items-center gap-3 rounded-xl border border-[#bbf7d0]/40 bg-[#f0fdf4]/60 px-3.5 py-2.5">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#16a34a]">
+                      <Check className="h-3 w-3 text-white" strokeWidth={3} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-[#15803d]">Resume parsed</p>
-                      <p className="truncate text-sm text-[#16a34a]/70">{resumeName}</p>
+                      <p className="text-[13px] font-semibold text-[#15803d]">Resume parsed</p>
+                      <p className="truncate text-[11px] text-[#16a34a]/60">{resumeName}</p>
                     </div>
                   </div>
                 )}
 
                 {parsingStatus === "idle" && (
-                  <div className="grid grid-cols-3 gap-2.5">
-                    <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-border hover:shadow-md hover:shadow-black/5" onClick={handleUploadFile}>
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-colors group-hover:bg-[#f0f7ff]">
-                        <Upload className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-[#3b82f6]" strokeWidth={1.5} />
+                  <div className="grid grid-cols-3 gap-2">
+                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/50 bg-background px-2 py-5 text-center transition-all duration-150 hover:border-border/80 hover:shadow-sm hover:shadow-black/[0.03]" onClick={handleUploadFile}>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/70 transition-colors duration-150 group-hover:bg-[#eff6ff]">
+                        <Upload className="h-3.5 w-3.5 text-muted-foreground transition-colors duration-150 group-hover:text-[#3b82f6]" strokeWidth={1.5} />
                       </span>
-                      <span className="text-sm font-semibold text-foreground">Upload File</span>
+                      <span className="text-[12px] font-semibold text-foreground">Upload File</span>
                     </button>
-                    <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-border hover:shadow-md hover:shadow-black/5" onClick={() => setPasteModalOpen(true)}>
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted transition-colors group-hover:bg-[#faf5ff]">
-                        <ClipboardPaste className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-[#8b5cf6]" strokeWidth={1.5} />
+                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/50 bg-background px-2 py-5 text-center transition-all duration-150 hover:border-border/80 hover:shadow-sm hover:shadow-black/[0.03]" onClick={() => setPasteModalOpen(true)}>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/70 transition-colors duration-150 group-hover:bg-[#f5f3ff]">
+                        <ClipboardPaste className="h-3.5 w-3.5 text-muted-foreground transition-colors duration-150 group-hover:text-[#7c3aed]" strokeWidth={1.5} />
                       </span>
-                      <span className="text-sm font-semibold text-foreground">Paste Text</span>
+                      <span className="text-[12px] font-semibold text-foreground">Paste Text</span>
                     </button>
-                    <button type="button" className="group flex flex-col items-center justify-center gap-2.5 rounded-xl border border-border/60 bg-background px-2 py-6 text-center transition-all hover:border-[#0077b5]/30 hover:shadow-md hover:shadow-black/5" onClick={handleConnectLinkedIn}>
-                      <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#f0f9ff] transition-colors group-hover:bg-[#e0f2fe]">
-                        <Linkedin className="h-4 w-4 text-[#0077b5]" strokeWidth={1.5} />
+                    <button type="button" className="group flex flex-col items-center justify-center gap-2 rounded-xl border border-border/50 bg-background px-2 py-5 text-center transition-all duration-150 hover:border-[#0077b5]/20 hover:shadow-sm hover:shadow-black/[0.03]" onClick={handleConnectLinkedIn}>
+                      <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#f0f9ff]/80 transition-colors duration-150 group-hover:bg-[#e0f2fe]">
+                        <Linkedin className="h-3.5 w-3.5 text-[#0077b5]" strokeWidth={1.5} />
                       </span>
-                      <span className="text-sm font-semibold text-foreground">LinkedIn</span>
+                      <span className="text-[12px] font-semibold text-foreground">LinkedIn</span>
                     </button>
                   </div>
                 )}
@@ -1294,13 +1335,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
                 {/* Apply to selected role + Start */}
                 {steps.step2 === "in-progress" && !isRunning && (
-                  <div className="mt-7 space-y-2.5">
+                  <div className="mt-6 space-y-2">
                     <button
                       type="button"
                       className={cn(
-                        "flex h-11 w-full items-center justify-center rounded-xl text-sm font-bold tracking-wide transition-all",
+                        "flex h-10 w-full items-center justify-center rounded-xl text-[13px] font-bold tracking-wide transition-all duration-150",
                         selectedProfile
-                          ? "bg-foreground text-background shadow-lg shadow-black/10 hover:opacity-90"
+                          ? "bg-foreground text-background shadow-sm shadow-foreground/10 hover:opacity-90"
                           : "cursor-not-allowed bg-muted text-muted-foreground"
                       )}
                       onClick={handleStartApplying}
@@ -1310,7 +1351,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     </button>
                     <button
                       type="button"
-                      className="flex h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-border/60 text-sm font-semibold text-muted-foreground transition-all hover:border-border hover:text-foreground hover:shadow-sm"
+                      className="flex h-8 w-full items-center justify-center gap-1.5 rounded-lg text-[12px] font-medium text-muted-foreground transition-all duration-150 hover:text-foreground"
                       onClick={handleGoToLinkedIn}
                     >
                       {"Start \u2192"}
@@ -1322,31 +1363,12 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
               {/* Step 3: Start Fill */}
               <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") handleStepToggle(3) }} canToggle={steps.step3 !== "not-started"}>
                 <div className="space-y-4">
-                  {/* Scan Jobs -- primary action, top of Step 3 */}
-                  {!scoringComplete && (
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex h-12 w-full items-center justify-center gap-2.5 rounded-xl text-sm font-bold tracking-wide transition-all",
-                        scanning
-                          ? "cursor-not-allowed bg-[#3b82f6]/80 text-white"
-                          : "bg-[#3b82f6] text-white shadow-md shadow-[#3b82f6]/20 hover:bg-[#2563eb] hover:shadow-lg hover:shadow-[#3b82f6]/30"
-                      )}
-                      onClick={handleScanJobs}
-                      disabled={scanning}
-                    >
-                      {scanning ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" strokeWidth={2} />
-                          Scanning jobs...
-                        </>
-                      ) : (
-                        <>
-                          <FileText className="h-4 w-4" strokeWidth={1.5} />
-                          Scan Jobs
-                        </>
-                      )}
-                    </button>
+                  {/* Scan status indicator */}
+                  {scanning && scanStatus && (
+                    <div className="flex items-center gap-2.5 rounded-lg bg-muted/40 px-3.5 py-2.5">
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-[#3b82f6]" strokeWidth={2} />
+                      <p className="text-xs text-muted-foreground">{scanStatus}</p>
+                    </div>
                   )}
 
                   {/* Scored Jobs List with interleaved Apply buttons */}
@@ -1363,25 +1385,26 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     />
                   )}
 
-                  {/* Apply the Selected (disabled placeholder) */}
-                  <button
-                    type="button"
-                    className="flex h-11 w-full cursor-not-allowed items-center justify-center rounded-xl border-2 border-muted bg-muted text-sm font-bold tracking-wide text-muted-foreground"
-                    disabled
-                  >
-                    Apply the Selected (Top {topPositions})
-                  </button>
+                  {/* Empty state before scan completes */}
+                  {scoredJobs.length === 0 && !scanning && !scoringComplete && (
+                    <div className="flex flex-col items-center justify-center py-6 text-center">
+                      <FileText className="h-5 w-5 text-muted-foreground/40" strokeWidth={1.5} />
+                      <p className="mt-2 text-xs text-muted-foreground/60">
+                        Scan will start automatically...
+                      </p>
+                    </div>
+                  )}
                 </div>
               </StepAccordion>
             </div>
 
             {/* ─── Footer ────────────────────────────────── */}
-            <div className="shrink-0 border-t border-border px-6 py-3">
+            <div className="shrink-0 border-t border-border/50 px-6 py-2.5">
               <div className="flex items-center justify-between">
-                <p className="text-[11px] leading-relaxed text-muted-foreground/60">
-                  Y.EAA does not store credentials or login sessions.
+                <p className="text-[10px] leading-relaxed text-muted-foreground/40">
+                  Y.EAA does not store credentials.
                 </p>
-                <button type="button" className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground transition-colors hover:text-foreground" onClick={handleLogout}>
+                <button type="button" className="flex items-center gap-1 text-[10px] font-medium text-muted-foreground/50 transition-colors duration-150 hover:text-foreground" onClick={handleLogout}>
                   <LogOut className="h-2.5 w-2.5" strokeWidth={1.5} />
                   Sign Out
                 </button>
@@ -1489,43 +1512,44 @@ function StepAccordion({
   const indicator = STEP_INDICATOR[status]
 
   return (
-    <div className="border-b border-border">
+    <div className="border-b border-border/70">
       <button
         type="button"
         className={cn(
-          "flex w-full items-center justify-between px-6 py-5 text-left transition-colors",
-          canToggle ? "hover:bg-muted/50" : "cursor-default"
+          "flex w-full items-center justify-between px-6 py-4 text-left transition-colors duration-150",
+          canToggle ? "hover:bg-muted/30" : "cursor-default",
+          isActive && "bg-muted/15"
         )}
         onClick={onToggle}
         disabled={!canToggle}
       >
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3">
           <span className={cn(
-            "flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ring-1 transition-colors",
+            "flex h-6 w-6 items-center justify-center rounded-md text-[11px] font-bold ring-1 transition-all duration-200",
             indicator.bg, indicator.ring, indicator.text,
-            status === "completed" && "ring-0"
+            status === "completed" && "ring-0 bg-[#16a34a] text-white"
           )}>
-            {status === "completed" ? <Check className="h-3.5 w-3.5" strokeWidth={3} /> : number}
+            {status === "completed" ? <Check className="h-3 w-3" strokeWidth={3} /> : number}
           </span>
           <span className={cn(
-            "text-[15px] font-bold transition-colors",
-            status === "not-started" ? "text-muted-foreground" : "text-foreground"
+            "text-[14px] font-semibold tracking-tight transition-colors",
+            status === "not-started" ? "text-muted-foreground/70" : "text-foreground"
           )}>
             {title}
           </span>
-          {titleAction && <span className="ml-1">{titleAction}</span>}
+          {titleAction && <span className="ml-0.5">{titleAction}</span>}
         </div>
         <div className="flex items-center gap-2">
           <span className={cn(
-            "rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest",
-            status === "not-started" && "bg-muted text-muted-foreground",
+            "rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]",
+            status === "not-started" && "bg-muted/70 text-muted-foreground/50",
             status === "in-progress" && "bg-[#eff6ff] text-[#1d4ed8]",
             status === "completed" && "bg-[#f0fdf4] text-[#15803d]",
           )}>
             {STATUS_COPY[status]}
           </span>
           {canToggle && (
-            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isActive && "rotate-180")} strokeWidth={1.5} />
+            <ChevronDown className={cn("h-3 w-3 text-muted-foreground/50 transition-transform duration-200", isActive && "rotate-180")} strokeWidth={1.5} />
           )}
         </div>
       </button>
@@ -1536,10 +1560,10 @@ function StepAccordion({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+            transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-6 pb-7 pt-1">{children}</div>
+            <div className="px-6 pb-6 pt-1">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1550,9 +1574,9 @@ function StepAccordion({
 /* ─── Scored Jobs List ───────────────────────────────────── */
 
 const TIER_CONFIG = {
-  recommend: { label: "Recommend", bg: "bg-[#f0fdf4]", border: "border-[#bbf7d0]", text: "text-[#15803d]", badge: "bg-[#dcfce7] text-[#15803d]" },
-  maybe: { label: "If You Need More", bg: "bg-[#fefce8]", border: "border-[#fef08a]", text: "text-[#a16207]", badge: "bg-[#fef9c3] text-[#a16207]" },
-  no: { label: "Don't Recommend", bg: "bg-[#fafafa]", border: "border-border/40", text: "text-muted-foreground", badge: "bg-muted text-muted-foreground" },
+  recommend: { label: "Recommend", bg: "bg-[#f0fdf4]/70", border: "border-[#bbf7d0]/60", text: "text-[#15803d]", badge: "bg-[#dcfce7]/80 text-[#15803d]" },
+  maybe: { label: "If You Need More", bg: "bg-[#fefce8]/60", border: "border-[#fef08a]/50", text: "text-[#a16207]", badge: "bg-[#fef9c3]/80 text-[#a16207]" },
+  no: { label: "Don't Recommend", bg: "bg-muted/30", border: "border-border/30", text: "text-muted-foreground/70", badge: "bg-muted/60 text-muted-foreground/70" },
 } as const
 
 function ScoredJobsList({
@@ -1583,11 +1607,12 @@ function ScoredJobsList({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+      {/* Header */}
+      <div className="flex items-center justify-between px-0.5">
+        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/70">
           Scored Jobs
         </p>
-        <span className="text-[11px] tabular-nums text-muted-foreground">
+        <span className="rounded-md bg-muted/60 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground">
           {jobs.length} found
         </span>
       </div>
@@ -1597,14 +1622,14 @@ function ScoredJobsList({
         <TierSection tier="recommend" jobs={recommendJobs} />
       )}
 
-      {/* Apply Recommended -- placed immediately after RECOMMEND list */}
+      {/* Apply Recommended -- immediately after RECOMMEND list */}
       <button
         type="button"
         className={cn(
-          "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
+          "flex h-10 w-full items-center justify-center gap-2 rounded-xl text-[13px] font-bold tracking-wide transition-all",
           !buttonsDisabled && recommendCount > 0
-            ? "border-[#16a34a] bg-[#f0fdf4] text-[#15803d] hover:bg-[#dcfce7]"
-            : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
+            ? "bg-[#16a34a] text-white shadow-sm shadow-[#16a34a]/15 hover:bg-[#15803d] hover:shadow-md hover:shadow-[#16a34a]/20"
+            : "cursor-not-allowed bg-muted text-muted-foreground"
         )}
         onClick={onApplyRecommended}
         disabled={buttonsDisabled || recommendCount === 0}
@@ -1612,10 +1637,28 @@ function ScoredJobsList({
         Apply Recommended ({recommendCount})
       </button>
 
+      {/* Apply All -- above DON'T RECOMMEND */}
+      <button
+        type="button"
+        className={cn(
+          "flex h-10 w-full items-center justify-center gap-2 rounded-xl border text-[13px] font-bold tracking-wide transition-all",
+          !buttonsDisabled && hasEligibleJobs
+            ? "border-foreground/15 bg-foreground text-background shadow-sm shadow-foreground/10 hover:opacity-90"
+            : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
+        )}
+        onClick={!buttonsDisabled ? onApplyAll : undefined}
+        disabled={buttonsDisabled || !hasEligibleJobs}
+      >
+        Apply All ({recommendCount + maybeCount})
+      </button>
+
       {/* MAYBE tier */}
       {maybeJobs.length > 0 && (
         <TierSection tier="maybe" jobs={maybeJobs} />
       )}
+
+      {/* Thin separator before "no" tier */}
+      {noJobs.length > 0 && <div className="h-px bg-border/50" />}
 
       {/* NO tier */}
       {noJobs.length > 0 && (
@@ -1624,23 +1667,23 @@ function ScoredJobsList({
 
       {/* Ineligible section */}
       {ineligible.length > 0 && (
-        <div className="overflow-hidden rounded-xl border border-border/30 opacity-60">
-          <div className="flex items-center justify-between bg-muted/30 px-3.5 py-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+        <div className="overflow-hidden rounded-xl border border-border/20">
+          <div className="flex items-center justify-between bg-muted/20 px-3.5 py-2">
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-muted-foreground/60">
               Ineligible
             </span>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">
+            <span className="rounded-md bg-muted/50 px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground/60">
               {ineligible.length}
             </span>
           </div>
-          <div className="divide-y divide-border/30">
+          <div className="divide-y divide-border/20">
             {ineligible.map((job) => (
-              <div key={job.id} className="group relative px-3.5 py-2.5" title={job.ineligibleReason || "Ineligible"}>
-                <p className="truncate text-sm font-medium text-muted-foreground">{job.title}</p>
+              <div key={job.id} className="group relative px-3.5 py-2 opacity-50 transition-opacity hover:opacity-70" title={job.ineligibleReason || "Ineligible"}>
+                <p className="truncate text-[13px] font-medium text-muted-foreground">{job.title}</p>
                 <div className="flex items-center gap-1.5">
-                  <span className="truncate text-xs text-muted-foreground/60">{job.company}</span>
-                  <span className="text-[10px] text-muted-foreground/30">{"/"}</span>
-                  <span className="truncate text-xs text-muted-foreground/50">{job.location}</span>
+                  <span className="truncate text-[11px] text-muted-foreground/60">{job.company}</span>
+                  <span className="text-[9px] text-muted-foreground/30">{"\u00b7"}</span>
+                  <span className="truncate text-[11px] text-muted-foreground/50">{job.location}</span>
                 </div>
                 {job.ineligibleReason && (
                   <div className="pointer-events-none absolute inset-x-0 bottom-full z-10 mx-2 mb-1 hidden rounded-lg border border-border bg-background px-3 py-2 text-xs leading-relaxed text-muted-foreground shadow-lg group-hover:block">
@@ -1654,29 +1697,14 @@ function ScoredJobsList({
       )}
 
       {scanning && (
-        <div className="flex items-center justify-center gap-2 py-2">
+        <div className="flex items-center justify-center gap-2 py-1">
           <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-60" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#3b82f6] opacity-50" />
             <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#3b82f6]" />
           </span>
-          <span className="text-xs text-muted-foreground">Scoring in progress...</span>
+          <span className="text-[11px] text-muted-foreground/60">Scoring in progress...</span>
         </div>
       )}
-
-      {/* Apply All -- very bottom of the entire list */}
-      <button
-        type="button"
-        className={cn(
-          "flex h-11 w-full items-center justify-center rounded-xl border-2 text-sm font-bold tracking-wide transition-all",
-          !buttonsDisabled && hasEligibleJobs
-            ? "border-foreground bg-background text-foreground hover:bg-muted"
-            : "cursor-not-allowed border-muted bg-muted text-muted-foreground"
-        )}
-        onClick={!buttonsDisabled ? onApplyAll : undefined}
-        disabled={buttonsDisabled || !hasEligibleJobs}
-      >
-        Apply All ({recommendCount + maybeCount})
-      </button>
     </div>
   )
 }
@@ -1688,26 +1716,39 @@ function TierSection({ tier, jobs }: { tier: "recommend" | "maybe" | "no"; jobs:
   return (
     <div className={cn("overflow-hidden rounded-xl border", config.border)}>
       <div className={cn("flex items-center justify-between px-3.5 py-2", config.bg)}>
-        <span className={cn("text-xs font-bold uppercase tracking-wider", config.text)}>
+        <span className={cn("text-[10px] font-bold uppercase tracking-[0.12em]", config.text)}>
           {config.label}
         </span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", config.badge)}>
+        <span className={cn("rounded-md px-1.5 py-0.5 text-[10px] font-bold tabular-nums", config.badge)}>
           {jobs.length}
         </span>
       </div>
-      <div className="divide-y divide-border/40">
+      <div className="divide-y divide-border/30">
         {jobs.map((job) => (
-          <div key={job.id} className={cn("flex items-center gap-3 px-3.5 py-2.5 transition-colors", tier === "recommend" && "bg-[#fafffe]")}>
-            <span className={cn(
-              "flex h-2 w-2 shrink-0 rounded-full transition-colors",
-              job.layer === 2 ? "bg-[#16a34a]" : "bg-[#d1d5db]"
-            )} title={job.layer === 2 ? "Fully enriched" : "Preliminary"} />
+          <div
+            key={job.id}
+            className={cn(
+              "flex items-center gap-3 px-3.5 py-2.5 transition-all",
+              tier === "recommend" ? "bg-[#fafffe] hover:bg-[#f0fdf4]/60" : "hover:bg-muted/30"
+            )}
+          >
+            {/* Layer indicator */}
+            <span className="relative flex h-2 w-2 shrink-0">
+              {job.layer === 2 ? (
+                <span className="inline-flex h-2 w-2 rounded-full bg-[#16a34a]" />
+              ) : (
+                <>
+                  <span className="absolute inline-flex h-full w-full animate-pulse rounded-full bg-[#d1d5db] opacity-40" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#d1d5db]" />
+                </>
+              )}
+            </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{job.title}</p>
+              <p className="truncate text-[13px] font-semibold text-foreground">{job.title}</p>
               <div className="flex items-center gap-1.5">
-                <span className="truncate text-xs text-muted-foreground">{job.company}</span>
-                <span className="text-[10px] text-muted-foreground/40">{"/"}</span>
-                <span className="truncate text-xs text-muted-foreground/70">{job.location}</span>
+                <span className="truncate text-[11px] text-muted-foreground">{job.company}</span>
+                <span className="text-[9px] text-muted-foreground/30">{"\u00b7"}</span>
+                <span className="truncate text-[11px] text-muted-foreground/60">{job.location}</span>
               </div>
             </div>
           </div>
