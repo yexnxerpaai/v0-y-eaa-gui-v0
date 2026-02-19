@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { OnboardingTour } from "@/components/control-plane/onboarding-tour"
 
 /* ─── Types ───────────────────────────────────────────── */
 
@@ -213,6 +214,11 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [scanning, setScanning] = useState(false)
   const [scoringComplete, setScoringComplete] = useState(false)
 
+  // Onboarding tour
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false)
+  const stepsContainerRef = useRef<HTMLDivElement>(null)
+
   // Referral & toast
   const [referralCode, setReferralCode] = useState("")
   const [referralLoading, setReferralLoading] = useState(false)
@@ -221,6 +227,32 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [creditToast, setCreditToast] = useState<string | null>(null)
 
   const quotaIsZero = quota === 0
+
+  /* ─── Onboarding Tour ──────────────────────────────── */
+
+  const handleOnboardingComplete = useCallback(async (dontShowAgain: boolean) => {
+    setShowOnboarding(false)
+    setHasSeenOnboarding(true)
+    if (dontShowAgain) {
+      try {
+        await fetch("/api/user/update-onboarding", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ hasSeenOnboarding: true }),
+        })
+      } catch {
+        // Silently fail - not critical
+      }
+    }
+  }, [])
+
+  // Trigger onboarding when entering AUTH_ACTIVE for the first time
+  useEffect(() => {
+    if (authState === "AUTH_ACTIVE" && !hasSeenOnboarding && open) {
+      const timer = setTimeout(() => setShowOnboarding(true), 600)
+      return () => clearTimeout(timer)
+    }
+  }, [authState, hasSeenOnboarding, open])
 
   /* Derived: is the profile read-only? Only during active run */
   const isRunning = runState === "running" || runState === "paused"
@@ -979,9 +1011,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </AnimatePresence>
 
             {/* ─── Steps ──────────────────────────────────── */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div ref={stepsContainerRef} className="min-h-0 flex-1 overflow-y-auto">
 
               {/* Step 1: Upload Resume */}
+              <div data-onboarding="step-1-upload">
               <StepAccordion
                 number={1}
                 title="Upload Resume"
@@ -1040,7 +1073,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     </div>
 
                     {/* ─── Confirm Your Details (inline) ────────── */}
-                    <div className="space-y-3">
+                    <div className="space-y-3" data-onboarding="step-1-preferences">
 
                       {/* ── Work Authorization Card ──────────────── */}
                       <div className="rounded-xl border border-border/60 bg-[#f8f9fb]">
@@ -1277,8 +1310,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   </div>
                 )}
               </StepAccordion>
+              </div>
 
               {/* Step 2: Search your role */}
+              <div data-onboarding="step-2-profiles">
               <StepAccordion number={2} title="Search your role" status={steps.step2} isActive={activeStep === 2} onToggle={() => { if (steps.step2 !== "not-started") handleStepToggle(2) }} canToggle={steps.step2 !== "not-started"}>
 
                 {/* Role cards */}
@@ -1437,6 +1472,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   </div>
                 )}
               </StepAccordion>
+              </div>
 
               {/* Step 3: Start Fill */}
               <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") handleStepToggle(3) }} canToggle={steps.step3 !== "not-started"}>
@@ -1545,6 +1581,14 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 </button>
               </div>
             </div>
+
+            {/* ─── Onboarding Tour ──────────────────────────── */}
+            {showOnboarding && (
+              <OnboardingTour
+                containerRef={stepsContainerRef}
+                onComplete={handleOnboardingComplete}
+              />
+            )}
 
             {/* ─── Paste Modal ─────────────────────────────── */}
             <AnimatePresence>
