@@ -248,11 +248,15 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
 
   // Trigger onboarding when entering AUTH_ACTIVE for the first time
   useEffect(() => {
+    console.log("[v0] Onboarding trigger check:", { authState, hasSeenOnboarding, open, showOnboarding })
     if (authState === "AUTH_ACTIVE" && !hasSeenOnboarding && open) {
-      const timer = setTimeout(() => setShowOnboarding(true), 600)
+      const timer = setTimeout(() => {
+        console.log("[v0] Setting showOnboarding=true")
+        setShowOnboarding(true)
+      }, 600)
       return () => clearTimeout(timer)
     }
-  }, [authState, hasSeenOnboarding, open])
+  }, [authState, hasSeenOnboarding, open, showOnboarding])
 
   /* Derived: is the profile read-only? Only during active run */
   const isRunning = runState === "running" || runState === "paused"

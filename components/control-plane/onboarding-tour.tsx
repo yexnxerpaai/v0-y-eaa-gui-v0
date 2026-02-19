@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react"
 import { createPortal } from "react-dom"
-import { motion, AnimatePresence, useMotionValue } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 /* ─── Types ──────────────────────────────────────────── */
@@ -12,7 +12,7 @@ interface TourStep {
   target: string | null       // data-onboarding="xxx", null = centered welcome/finish
   headline: string
   body: string
-  actionHint?: string         // brief CTA shown under body
+  actionHint?: string
 }
 
 interface OnboardingTourProps {
@@ -22,9 +22,8 @@ interface OnboardingTourProps {
 
 /* ─── Step Definitions ───────────────────────────────── */
 
-const SIDEBAR_WIDTH = 400
-const CARD_WIDTH = 320
-const GAP = 40
+const CARD_WIDTH = 300
+const GAP = 32
 
 const TOUR_STEPS: TourStep[] = [
   {
@@ -62,119 +61,68 @@ const TOUR_STEPS: TourStep[] = [
   },
 ]
 
-/* ─── Dynamic SVG Bridge ─────────────────────────────── */
+/* ─── Highlight Ring ─────────────────────────────────── */
 
-function SvgBridge({
-  cardRight,
-  cardCenterY,
-  targetLeft,
-  targetCenterY,
-}: {
-  cardRight: number
-  cardCenterY: number
-  targetLeft: number
-  targetCenterY: number
-}) {
-  const startX = cardRight + 4
-  const startY = cardCenterY
-  const endX = targetLeft - 4
-  const endY = targetCenterY
-
-  const midX = startX + (endX - startX) * 0.5
-  const d = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`
-
-  // Arrow head at end
-  const angle = Math.atan2(endY - startY, endX - midX)
-  const arrowLen = 8
-  const a1x = endX - arrowLen * Math.cos(angle - 0.4)
-  const a1y = endY - arrowLen * Math.sin(angle - 0.4)
-  const a2x = endX - arrowLen * Math.cos(angle + 0.4)
-  const a2y = endY - arrowLen * Math.sin(angle + 0.4)
-
+function HighlightRing({ rect }: { rect: DOMRect }) {
+  const pad = 8
   return (
-    <svg
-      className="pointer-events-none fixed inset-0 z-[10001] h-full w-full"
-      style={{ overflow: "visible" }}
-    >
-      <defs>
-        <linearGradient id="bridge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
-          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.9" />
-        </linearGradient>
-      </defs>
-      <motion.path
-        d={d}
-        fill="none"
-        stroke="url(#bridge-grad)"
-        strokeWidth="2"
-        strokeLinecap="round"
-        initial={{ pathLength: 0, opacity: 0 }}
-        animate={{ pathLength: 1, opacity: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-      />
-      <motion.path
-        d={`M ${a1x} ${a1y} L ${endX} ${endY} L ${a2x} ${a2y}`}
-        fill="none"
-        stroke="#3b82f6"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 0.9 }}
-        transition={{ delay: 0.3, duration: 0.2 }}
-      />
-    </svg>
+    <div
+      className="pointer-events-none fixed z-[10000] rounded-xl ring-2 ring-[#3b82f6]/30 transition-all duration-300"
+      style={{
+        left: rect.left - pad,
+        top: rect.top - pad,
+        width: rect.width + pad * 2,
+        height: rect.height + pad * 2,
+      }}
+    />
   )
 }
 
-/* ─── Interactive Spotlight Overlay ───────────────────── */
+/* ─── Dynamic SVG Bridge ─────────────────────────────── */
 
-function SpotlightOverlay({ targetRect }: { targetRect: DOMRect | null }) {
-  const pad = 10
-  const radius = 14
+function SvgBridge({
+  fromX,
+  fromY,
+  toX,
+  toY,
+}: {
+  fromX: number
+  fromY: number
+  toX: number
+  toY: number
+}) {
+  const midX = fromX + (toX - fromX) * 0.45
+  const d = `M ${fromX} ${fromY} C ${midX} ${fromY}, ${midX} ${toY}, ${toX} ${toY}`
 
-  if (!targetRect) {
-    return (
-      <div
-        className="fixed inset-0 z-[9999] bg-black/8 backdrop-blur-[2px]"
-        style={{ pointerEvents: "none" }}
-        role="presentation"
-      />
-    )
-  }
-
-  const x = targetRect.left - pad
-  const y = targetRect.top - pad
-  const w = targetRect.width + pad * 2
-  const h = targetRect.height + pad * 2
+  const angle = Math.atan2(toY - fromY, toX - midX)
+  const aLen = 7
+  const a1x = toX - aLen * Math.cos(angle - 0.35)
+  const a1y = toY - aLen * Math.sin(angle - 0.35)
+  const a2x = toX - aLen * Math.cos(angle + 0.35)
+  const a2y = toY - aLen * Math.sin(angle + 0.35)
 
   return (
-    <>
-      <svg
-        className="fixed inset-0 z-[9999] h-full w-full"
-        style={{ pointerEvents: "none" }}
-        role="presentation"
-      >
-        <defs>
-          <mask id="sidecar-spotlight">
-            <rect x="0" y="0" width="100%" height="100%" fill="white" />
-            <rect x={x} y={y} width={w} height={h} rx={radius} ry={radius} fill="black" />
-          </mask>
-        </defs>
-        <rect
-          x="0" y="0" width="100%" height="100%"
-          fill="rgba(0,0,0,0.06)"
-          mask="url(#sidecar-spotlight)"
-          style={{ backdropFilter: "blur(2px)" }}
-        />
-      </svg>
-
-      {/* Highlight ring around target */}
-      <div
-        className="pointer-events-none fixed z-[10000] rounded-[14px] ring-2 ring-[#3b82f6]/25 transition-all duration-300"
-        style={{ left: x, top: y, width: w, height: h }}
+    <svg className="pointer-events-none fixed inset-0 z-[10001] h-screen w-screen overflow-visible">
+      <motion.path
+        d={d}
+        fill="none"
+        stroke="#3b82f6"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeOpacity="0.5"
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
       />
-    </>
+      <motion.polygon
+        points={`${a1x},${a1y} ${toX},${toY} ${a2x},${a2y}`}
+        fill="#3b82f6"
+        fillOpacity="0.5"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.3, duration: 0.15 }}
+      />
+    </svg>
   )
 }
 
@@ -185,13 +133,13 @@ function NudgeToast({ visible }: { visible: boolean }) {
     <AnimatePresence>
       {visible && (
         <motion.div
-          className="absolute -top-12 left-0 right-0 z-[10003] text-center"
-          initial={{ opacity: 0, y: 6 }}
+          className="absolute -top-11 left-0 right-0 z-[10003] text-center"
+          initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 6 }}
-          transition={{ duration: 0.2 }}
+          exit={{ opacity: 0, y: 4 }}
+          transition={{ duration: 0.15 }}
         >
-          <span className="inline-block rounded-lg border border-amber-200/60 bg-amber-50/95 px-3 py-1.5 text-[12px] font-medium text-amber-700 shadow-sm backdrop-blur-sm">
+          <span className="inline-block rounded-lg border border-amber-200/50 bg-amber-50/90 px-3 py-1.5 text-[11px] font-medium text-amber-700 shadow-sm backdrop-blur-sm">
             Try completing this step first for the best experience.
           </span>
         </motion.div>
@@ -210,16 +158,16 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
   const [showNudge, setShowNudge] = useState(false)
   const [actionPerformed, setActionPerformed] = useState<Record<string, boolean>>({})
   const [mounted, setMounted] = useState(false)
+  const [cardPos, setCardPos] = useState<{ left: number; top: number } | null>(null)
 
-  // For dragging: track card position to re-draw SVG bridge
-  const dragX = useMotionValue(0)
-  const dragY = useMotionValue(0)
-  const [cardOffset, setCardOffset] = useState({ x: 0, y: 0 })
+  // For drag
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const cardRef = useRef<HTMLDivElement>(null)
 
   const step = TOUR_STEPS[currentStep]
   const isFirst = currentStep === 0
   const isLast = currentStep === TOUR_STEPS.length - 1
+  const hasTarget = step.target !== null
 
   useEffect(() => setMounted(true), [])
 
@@ -242,55 +190,93 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
     }
   }, [step.target, step.id])
 
-  /* ─── Reset nudge/drag on step change ──────────────── */
+  /* ─── Reset state on step change ───────────────────── */
 
   useEffect(() => {
     setNudgeCount(0)
     setShowNudge(false)
-    setCardOffset({ x: 0, y: 0 })
-    dragX.set(0)
-    dragY.set(0)
-  }, [currentStep, dragX, dragY])
+    setDragOffset({ x: 0, y: 0 })
+  }, [currentStep])
 
-  /* ─── Measure target element ───────────────────────── */
+  /* ─── Scroll target into view, then measure ────────── */
 
-  const measureTarget = useCallback(() => {
+  useEffect(() => {
     if (!step.target) {
       setTargetRect(null)
       return
     }
+
     const el = document.querySelector(`[data-onboarding="${step.target}"]`)
-    if (el) {
-      setTargetRect(el.getBoundingClientRect())
-    } else {
+    if (!el) {
       setTargetRect(null)
+      return
     }
-  }, [step.target])
 
-  useEffect(() => {
-    measureTarget()
-    const id = setInterval(measureTarget, 250)
-    window.addEventListener("resize", measureTarget)
-    window.addEventListener("scroll", measureTarget, true)
-    return () => {
-      clearInterval(id)
-      window.removeEventListener("resize", measureTarget)
-      window.removeEventListener("scroll", measureTarget, true)
+    // Scroll into view inside the overflow container
+    if (containerRef.current) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" })
     }
-  }, [measureTarget])
 
-  /* ─── Scroll target into view ──────────────────────── */
+    // Delay measure to let scroll finish
+    const timer = setTimeout(() => {
+      setTargetRect(el.getBoundingClientRect())
+    }, 400)
+
+    return () => clearTimeout(timer)
+  }, [step.target, containerRef])
+
+  /* ─── Continuously re-measure target ───────────────── */
 
   useEffect(() => {
     if (!step.target) return
-    const el = document.querySelector(`[data-onboarding="${step.target}"]`)
-    if (el && containerRef.current) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" })
-      setTimeout(measureTarget, 400)
-    }
-  }, [step.target, containerRef, measureTarget])
 
-  /* ─── Navigation with soft-lock nudge ──────────────── */
+    const measure = () => {
+      const el = document.querySelector(`[data-onboarding="${step.target}"]`)
+      if (el) setTargetRect(el.getBoundingClientRect())
+    }
+
+    const id = setInterval(measure, 300)
+    window.addEventListener("resize", measure)
+    window.addEventListener("scroll", measure, true)
+    return () => {
+      clearInterval(id)
+      window.removeEventListener("resize", measure)
+      window.removeEventListener("scroll", measure, true)
+    }
+  }, [step.target])
+
+  /* ─── Compute card position ────────────────────────── */
+
+  useLayoutEffect(() => {
+    if (!mounted) return
+
+    if (!hasTarget || !targetRect) {
+      // Welcome / Execute: find the sidebar, center card in viewport left of it
+      const sidebar = document.querySelector('[data-onboarding-sidebar]') ||
+                      document.querySelector('.fixed.inset-y-0.right-0') // fallback
+      const sidebarLeft = sidebar ? sidebar.getBoundingClientRect().left : window.innerWidth - 400
+      setCardPos({
+        left: Math.max(16, (sidebarLeft - CARD_WIDTH) / 2),
+        top: window.innerHeight / 2,
+      })
+      return
+    }
+
+    // Sidecar: card is to the left of the sidebar, vertically centered to the target
+    const sidebarLeft = targetRect.right + (window.innerWidth - targetRect.right - targetRect.width)
+    // More reliably: the sidebar edge is where the target starts
+    // Target is inside the sidebar (400px from right). Card goes to the left of the sidebar.
+    const sidebarLeftEdge = window.innerWidth - 400
+    const cardLeft = sidebarLeftEdge - CARD_WIDTH - GAP
+    const targetCenterY = targetRect.top + targetRect.height / 2
+
+    setCardPos({
+      left: Math.max(16, cardLeft),
+      top: targetCenterY,
+    })
+  }, [mounted, hasTarget, targetRect])
+
+  /* ─── Navigation ───────────────────────────────────── */
 
   const handleNext = useCallback(() => {
     if (step.target && !actionPerformed[step.id]) {
@@ -302,7 +288,7 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
         setTimeout(() => setShowNudge(false), 3000)
         return
       }
-      // Second click = hidden skip, fall through
+      // count >= 2: silent skip, fall through
     }
 
     if (isLast) {
@@ -320,174 +306,172 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
     onComplete(dontShowAgain)
   }, [onComplete, dontShowAgain])
 
-  /* ─── Card position calculation (sidecar) ──────────── */
-
-  const getCardStyle = (): React.CSSProperties => {
-    const sidebarLeft = window.innerWidth - SIDEBAR_WIDTH
-
-    if (!targetRect) {
-      // Welcome / Execute: center in the viewport area left of sidebar
-      return {
-        position: "fixed",
-        top: "50%",
-        left: `${(sidebarLeft - CARD_WIDTH) / 2}px`,
-        width: `${CARD_WIDTH}px`,
-        transform: "translateY(-50%)",
-      }
-    }
-
-    // Sidecar: vertically centered to target, 40px gap to sidebar left edge
-    const cardLeft = sidebarLeft - CARD_WIDTH - GAP
-    const targetCenterY = targetRect.top + targetRect.height / 2
-    const cardTop = targetCenterY // will be shifted by transform: -50%
-
-    return {
-      position: "fixed",
-      top: `${cardTop}px`,
-      left: `${Math.max(12, cardLeft)}px`,
-      width: `${CARD_WIDTH}px`,
-      transform: "translateY(-50%)",
-    }
-  }
-
   /* ─── SVG bridge coordinates ───────────────────────── */
 
-  const getBridgeProps = () => {
-    if (!targetRect || !cardRef.current) return null
+  const getBridgeCoords = () => {
+    if (!targetRect || !cardPos) return null
 
-    const cardRect = cardRef.current.getBoundingClientRect()
+    const cardRight = cardPos.left + dragOffset.x + CARD_WIDTH
+    const cardCenterY = cardPos.top + dragOffset.y // card is already centered via transform
+
     return {
-      cardRight: cardRect.right + cardOffset.x,
-      cardCenterY: cardRect.top + cardRect.height / 2 + cardOffset.y,
-      targetLeft: targetRect.left,
-      targetCenterY: targetRect.top + targetRect.height / 2,
+      fromX: cardRight + 6,
+      fromY: cardCenterY,
+      toX: targetRect.left - 6,
+      toY: targetRect.top + targetRect.height / 2,
     }
   }
 
-  const bridgeProps = getBridgeProps()
+  if (!mounted || !cardPos) return null
 
-  if (!mounted) return null
+  const bridgeCoords = getBridgeCoords()
 
   const content = (
     <>
-      {/* Overlay */}
-      <SpotlightOverlay targetRect={targetRect} />
+      {/* Very subtle overlay - pointer events pass through everywhere */}
+      <div
+        className="fixed inset-0 z-[9999] bg-black/[0.04]"
+        style={{ pointerEvents: "none" }}
+        role="presentation"
+      />
+
+      {/* Highlight ring on target */}
+      {targetRect && <HighlightRing rect={targetRect} />}
 
       {/* SVG Bridge */}
-      <AnimatePresence>
-        {bridgeProps && targetRect && (
-          <SvgBridge
-            key={step.id + "-bridge-" + cardOffset.x + cardOffset.y}
-            {...bridgeProps}
-          />
-        )}
-      </AnimatePresence>
+      {bridgeCoords && targetRect && (
+        <SvgBridge
+          key={`bridge-${step.id}`}
+          fromX={bridgeCoords.fromX}
+          fromY={bridgeCoords.fromY}
+          toX={bridgeCoords.toX}
+          toY={bridgeCoords.toY}
+        />
+      )}
 
-      {/* Draggable sidecar card */}
+      {/* Sidecar Card */}
       <AnimatePresence mode="wait">
         <motion.div
           key={step.id}
           ref={cardRef}
-          className="z-[10002] cursor-grab rounded-2xl border border-white/70 bg-white/80 p-6 shadow-xl shadow-black/[0.08] backdrop-blur-xl active:cursor-grabbing"
+          className="fixed z-[10002] cursor-grab rounded-2xl border border-white/60 bg-white/85 shadow-lg shadow-black/[0.06] backdrop-blur-2xl active:cursor-grabbing"
           style={{
-            ...getCardStyle(),
-            x: dragX,
-            y: dragY,
+            left: cardPos.left + dragOffset.x,
+            top: cardPos.top + dragOffset.y,
+            width: CARD_WIDTH,
+            transform: "translateY(-50%)",
           }}
-          drag
-          dragMomentum={false}
-          dragElastic={0}
-          onDrag={() => {
-            setCardOffset({ x: dragX.get(), y: dragY.get() })
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -20 }}
+          transition={{ duration: 0.22, ease: [0.25, 0.1, 0.25, 1] }}
+          draggable
+          onDragStart={(e) => {
+            // Track starting mouse position for manual drag
+            const el = e.currentTarget as HTMLElement
+            el.dataset.dragStartX = String(e.clientX)
+            el.dataset.dragStartY = String(e.clientY)
+            el.dataset.dragOffsetX = String(dragOffset.x)
+            el.dataset.dragOffsetY = String(dragOffset.y)
           }}
-          initial={{ opacity: 0, scale: 0.95, x: -16 }}
-          animate={{ opacity: 1, scale: 1, x: 0 }}
-          exit={{ opacity: 0, scale: 0.95, x: -16 }}
-          transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
+          onDrag={(e) => {
+            const el = e.currentTarget as HTMLElement
+            const startX = Number(el.dataset.dragStartX || 0)
+            const startY = Number(el.dataset.dragStartY || 0)
+            const origX = Number(el.dataset.dragOffsetX || 0)
+            const origY = Number(el.dataset.dragOffsetY || 0)
+            if (e.clientX === 0 && e.clientY === 0) return // dragend fires with 0,0
+            setDragOffset({
+              x: origX + (e.clientX - startX),
+              y: origY + (e.clientY - startY),
+            })
+          }}
         >
-          {/* Drag handle hint */}
-          <div className="mb-3 flex justify-center">
-            <div className="h-1 w-8 rounded-full bg-[#cbd5e1]/50" />
-          </div>
-
-          {/* Progress dots */}
-          <div className="mb-4 flex items-center gap-1.5">
-            {TOUR_STEPS.map((_, i) => (
-              <span
-                key={i}
-                className={cn(
-                  "h-1.5 rounded-full transition-all duration-300",
-                  i === currentStep
-                    ? "w-5 bg-[#3b82f6]"
-                    : i < currentStep
-                      ? "w-2 bg-[#3b82f6]/30"
-                      : "w-2 bg-[#94a3b8]/20"
-                )}
-              />
-            ))}
-            <span className="ml-auto text-[11px] font-medium tabular-nums text-[#94a3b8]">
-              {currentStep + 1}/{TOUR_STEPS.length}
-            </span>
-          </div>
-
-          {/* Content */}
-          <h3 className="text-[20px] font-bold leading-tight tracking-tight text-[#0f172a]">
-            {step.headline}
-          </h3>
-          <p className="mt-2.5 text-[15px] leading-relaxed text-[#475569]">
-            {step.body}
-          </p>
-          {step.actionHint && (
-            <p className="mt-2 text-[13px] font-medium text-[#3b82f6]">
-              {step.actionHint}
-            </p>
-          )}
-
-          {/* Last step: don't-show-again checkbox */}
-          {isLast && (
-            <div className="mt-5 border-t border-[#e2e8f0]/50 pt-4">
-              <label className="flex cursor-pointer items-center gap-2.5">
-                <input
-                  type="checkbox"
-                  checked={dontShowAgain}
-                  onChange={(e) => setDontShowAgain(e.target.checked)}
-                  className="h-4 w-4 rounded border-[#cbd5e1] bg-white accent-[#3b82f6]"
-                />
-                <span className="text-[13px] text-[#64748b]">
-                  {"Don\u2019t show this guide again"}
-                </span>
-              </label>
+          <div className="p-5">
+            {/* Drag handle */}
+            <div className="mb-3 flex justify-center">
+              <div className="h-[3px] w-7 rounded-full bg-[#cbd5e1]/40" />
             </div>
-          )}
 
-          {/* Actions */}
-          <div className="relative mt-5 flex items-center justify-between">
-            <NudgeToast visible={showNudge} />
+            {/* Progress dots */}
+            <div className="mb-3.5 flex items-center gap-1.5">
+              {TOUR_STEPS.map((_, i) => (
+                <span
+                  key={i}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all duration-300",
+                    i === currentStep
+                      ? "w-5 bg-[#3b82f6]"
+                      : i < currentStep
+                        ? "w-1.5 bg-[#3b82f6]/25"
+                        : "w-1.5 bg-[#94a3b8]/15"
+                  )}
+                />
+              ))}
+              <span className="ml-auto text-[10px] font-medium tabular-nums text-[#94a3b8]/70">
+                {currentStep + 1}/{TOUR_STEPS.length}
+              </span>
+            </div>
 
-            <button
-              type="button"
-              className="text-[12px] font-medium text-[#94a3b8] transition-colors duration-200 hover:text-[#64748b]"
-              onClick={handleSkip}
-            >
-              Skip tour
-            </button>
-            <div className="flex items-center gap-2">
-              {!isFirst && (
-                <button
-                  type="button"
-                  className="flex h-9 items-center rounded-lg border border-[#e2e8f0] bg-white px-4 text-[13px] font-medium text-[#475569] transition-all duration-200 hover:border-[#cbd5e1] hover:text-[#0f172a]"
-                  onClick={handleBack}
-                >
-                  Back
-                </button>
-              )}
+            {/* Content */}
+            <h3 className="text-[17px] font-semibold leading-tight tracking-tight text-[#0f172a]">
+              {step.headline}
+            </h3>
+            <p className="mt-2 text-[13px] leading-relaxed text-[#64748b]">
+              {step.body}
+            </p>
+            {step.actionHint && (
+              <p className="mt-1.5 text-[12px] font-medium text-[#3b82f6]/80">
+                {step.actionHint}
+              </p>
+            )}
+
+            {/* Last step: don't show again */}
+            {isLast && (
+              <div className="mt-4 border-t border-[#e2e8f0]/40 pt-3">
+                <label className="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={dontShowAgain}
+                    onChange={(e) => setDontShowAgain(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-[#cbd5e1] bg-white accent-[#3b82f6]"
+                  />
+                  <span className="text-[11px] text-[#94a3b8]">
+                    {"Don\u2019t show this guide again"}
+                  </span>
+                </label>
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="relative mt-4 flex items-center justify-between">
+              <NudgeToast visible={showNudge} />
+
               <button
                 type="button"
-                className="flex h-9 items-center rounded-lg bg-[#0f172a] px-5 text-[13px] font-semibold text-white transition-all duration-200 hover:bg-[#1e293b]"
-                onClick={handleNext}
+                className="text-[11px] font-medium text-[#94a3b8]/60 transition-colors duration-200 hover:text-[#64748b]"
+                onClick={handleSkip}
               >
-                {isLast ? "Finish" : "Next"}
+                Skip tour
               </button>
+              <div className="flex items-center gap-1.5">
+                {!isFirst && (
+                  <button
+                    type="button"
+                    className="flex h-8 items-center rounded-lg border border-[#e2e8f0]/60 bg-white/80 px-3 text-[12px] font-medium text-[#64748b] transition-all duration-200 hover:border-[#cbd5e1] hover:text-[#0f172a]"
+                    onClick={handleBack}
+                  >
+                    Back
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="flex h-8 items-center rounded-lg bg-[#0f172a] px-4 text-[12px] font-semibold text-white transition-all duration-200 hover:bg-[#1e293b]"
+                  onClick={handleNext}
+                >
+                  {isLast ? "Finish" : "Next"}
+                </button>
+              </div>
             </div>
           </div>
         </motion.div>
