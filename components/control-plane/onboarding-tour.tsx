@@ -1,18 +1,18 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
-import { motion, AnimatePresence } from "framer-motion"
+import { createPortal } from "react-dom"
+import { motion, AnimatePresence, useMotionValue } from "framer-motion"
 import { cn } from "@/lib/utils"
 
 /* ─── Types ──────────────────────────────────────────── */
 
 interface TourStep {
   id: string
-  target: string | null // data-onboarding="xxx" selector, null = center screen
+  target: string | null       // data-onboarding="xxx", null = centered welcome/finish
   headline: string
-  points: string[]
-  footer?: string
-  arrowSide?: "top" | "bottom" | "left" | "right"
+  body: string
+  actionHint?: string         // brief CTA shown under body
 }
 
 interface OnboardingTourProps {
@@ -20,134 +20,129 @@ interface OnboardingTourProps {
   onComplete: (dontShowAgain: boolean) => void
 }
 
-/* ─── Steps ──────────────────────────────────────────── */
+/* ─── Step Definitions ───────────────────────────────── */
+
+const SIDEBAR_WIDTH = 400
+const CARD_WIDTH = 320
+const GAP = 40
 
 const TOUR_STEPS: TourStep[] = [
   {
     id: "welcome",
     target: null,
     headline: "Welcome to Y.EAA",
-    points: [
-      "Fast, high-quality application filling.",
-      "Support: LinkedIn Easy Apply (More platforms coming).",
-      "LLM: Use our credits or your Gemini Key (Settings).",
-    ],
+    body: "High-quality, fast applications. We support LinkedIn Easy Apply with Gemini or internal credits.",
   },
   {
-    id: "resume-core",
+    id: "resume",
     target: "step-1-upload",
-    headline: "Resume Core",
-    points: [
-      "Our AI\u2019s primary \u201CSource of Truth.\u201D",
-      "Upload your latest PDF/Docx here.",
-    ],
-    arrowSide: "top",
+    headline: "Upload Your Resume",
+    body: "Your resume is the AI\u2019s primary source of truth. Upload your latest PDF or paste text.",
+    actionHint: "Try uploading now \u2014 the panel is interactive.",
   },
   {
-    id: "legal-automations",
+    id: "legal",
     target: "step-1-preferences",
-    headline: "Legal Automations",
-    points: [
-      "Pre-fill your legal disclosures.",
-      "Allows the AI to bypass repetitive questions.",
-    ],
-    arrowSide: "top",
+    headline: "EEO & Work Auth",
+    body: "Pre-fill your legal disclosures so the AI can skip repetitive questions automatically.",
+    actionHint: "Fill in your details while this guide is open.",
   },
   {
-    id: "define-target",
+    id: "role",
     target: "step-2-profiles",
-    headline: "Define Your Target",
-    points: [
-      "Define your \u201CIdeal Role.\u201D",
-      "Used to filter and prioritize onscreen jobs.",
-    ],
-    arrowSide: "top",
+    headline: "Define Your Target Role",
+    body: "Your job profile directs the scanner on what to prioritize when scoring jobs.",
+    actionHint: "Select or edit a profile now.",
   },
   {
     id: "execute",
     target: null,
-    headline: "Ready to Apply?",
-    points: [
-      "We scan and score LinkedIn jobs in real-time.",
-      "Apply to \u201CRecommended\u201D (Best Match) or \u201CAll.\u201D",
-    ],
+    headline: "Scan & Apply",
+    body: "We score LinkedIn jobs in real-time. Choose \u201CRecommended\u201D for high-match jobs, or apply to all.",
   },
 ]
 
-/* ─── Gradient SVG Arrow ─────────────────────────────── */
+/* ─── Dynamic SVG Bridge ─────────────────────────────── */
 
-function GradientArrow({
-  side,
-  style,
+function SvgBridge({
+  cardRight,
+  cardCenterY,
+  targetLeft,
+  targetCenterY,
 }: {
-  side: "top" | "bottom" | "left" | "right"
-  style?: React.CSSProperties
+  cardRight: number
+  cardCenterY: number
+  targetLeft: number
+  targetCenterY: number
 }) {
-  const rotation =
-    side === "top"
-      ? "rotate(180deg)"
-      : side === "bottom"
-        ? "rotate(0deg)"
-        : side === "left"
-          ? "rotate(90deg)"
-          : "rotate(-90deg)"
+  const startX = cardRight + 4
+  const startY = cardCenterY
+  const endX = targetLeft - 4
+  const endY = targetCenterY
+
+  const midX = startX + (endX - startX) * 0.5
+  const d = `M ${startX} ${startY} C ${midX} ${startY}, ${midX} ${endY}, ${endX} ${endY}`
+
+  // Arrow head at end
+  const angle = Math.atan2(endY - startY, endX - midX)
+  const arrowLen = 8
+  const a1x = endX - arrowLen * Math.cos(angle - 0.4)
+  const a1y = endY - arrowLen * Math.sin(angle - 0.4)
+  const a2x = endX - arrowLen * Math.cos(angle + 0.4)
+  const a2y = endY - arrowLen * Math.sin(angle + 0.4)
 
   return (
-    <motion.div
-      className="pointer-events-none absolute z-[10002]"
-      style={style}
-      animate={{
-        y: side === "top" || side === "bottom" ? [0, -5, 0] : 0,
-        x: side === "left" || side === "right" ? [0, -5, 0] : 0,
-      }}
-      transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+    <svg
+      className="pointer-events-none fixed inset-0 z-[10001] h-full w-full"
+      style={{ overflow: "visible" }}
     >
-      <svg
-        width="32"
-        height="44"
-        viewBox="0 0 32 44"
+      <defs>
+        <linearGradient id="bridge-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.9" />
+        </linearGradient>
+      </defs>
+      <motion.path
+        d={d}
         fill="none"
-        style={{ transform: rotation }}
-      >
-        <defs>
-          <linearGradient id="arrow-grad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="100%" stopColor="#8b5cf6" />
-          </linearGradient>
-        </defs>
-        <path
-          d="M16 2 L16 30 M8 22 L16 30 L24 22"
-          stroke="url(#arrow-grad)"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </motion.div>
+        stroke="url(#bridge-grad)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        initial={{ pathLength: 0, opacity: 0 }}
+        animate={{ pathLength: 1, opacity: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+      />
+      <motion.path
+        d={`M ${a1x} ${a1y} L ${endX} ${endY} L ${a2x} ${a2y}`}
+        fill="none"
+        stroke="#3b82f6"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 0.9 }}
+        transition={{ delay: 0.3, duration: 0.2 }}
+      />
+    </svg>
   )
 }
 
-/* ─── Interactive Spotlight Overlay (pointer-events: auto on cutout) ── */
+/* ─── Interactive Spotlight Overlay ───────────────────── */
 
-function SpotlightOverlay({
-  targetRect,
-  onOverlayClick,
-}: {
-  targetRect: DOMRect | null
-  onOverlayClick: () => void
-}) {
+function SpotlightOverlay({ targetRect }: { targetRect: DOMRect | null }) {
+  const pad = 10
+  const radius = 14
+
   if (!targetRect) {
     return (
       <div
-        className="fixed inset-0 z-[10000] bg-white/30 backdrop-blur-sm"
-        onClick={onOverlayClick}
+        className="fixed inset-0 z-[9999] bg-black/8 backdrop-blur-[2px]"
+        style={{ pointerEvents: "none" }}
         role="presentation"
       />
     )
   }
 
-  const pad = 10
-  const radius = 14
   const x = targetRect.left - pad
   const y = targetRect.top - pad
   const w = targetRect.width + pad * 2
@@ -155,40 +150,29 @@ function SpotlightOverlay({
 
   return (
     <>
-      {/* Semi-transparent overlay with cutout */}
       <svg
-        className="fixed inset-0 z-[10000] h-full w-full"
+        className="fixed inset-0 z-[9999] h-full w-full"
         style={{ pointerEvents: "none" }}
         role="presentation"
       >
         <defs>
-          <mask id="spotlight-mask-live">
+          <mask id="sidecar-spotlight">
             <rect x="0" y="0" width="100%" height="100%" fill="white" />
             <rect x={x} y={y} width={w} height={h} rx={radius} ry={radius} fill="black" />
           </mask>
         </defs>
         <rect
-          x="0"
-          y="0"
-          width="100%"
-          height="100%"
-          fill="rgba(255,255,255,0.30)"
-          mask="url(#spotlight-mask-live)"
-          style={{ pointerEvents: "auto", backdropFilter: "blur(2px)" }}
-          onClick={onOverlayClick}
+          x="0" y="0" width="100%" height="100%"
+          fill="rgba(0,0,0,0.06)"
+          mask="url(#sidecar-spotlight)"
+          style={{ backdropFilter: "blur(2px)" }}
         />
       </svg>
 
-      {/* Interactive cutout ring -- pointer-events: auto so user can interact */}
+      {/* Highlight ring around target */}
       <div
-        className="fixed z-[10000] rounded-[14px] ring-2 ring-[#3b82f6]/30"
-        style={{
-          left: x,
-          top: y,
-          width: w,
-          height: h,
-          pointerEvents: "none",
-        }}
+        className="pointer-events-none fixed z-[10000] rounded-[14px] ring-2 ring-[#3b82f6]/25 transition-all duration-300"
+        style={{ left: x, top: y, width: w, height: h }}
       />
     </>
   )
@@ -201,13 +185,15 @@ function NudgeToast({ visible }: { visible: boolean }) {
     <AnimatePresence>
       {visible && (
         <motion.div
-          className="absolute -top-10 right-0 z-[10003] whitespace-nowrap rounded-lg border border-amber-200/60 bg-amber-50/90 px-3 py-1.5 text-[12px] font-medium text-amber-700 shadow-sm backdrop-blur-sm"
-          initial={{ opacity: 0, y: 4 }}
+          className="absolute -top-12 left-0 right-0 z-[10003] text-center"
+          initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 4 }}
-          transition={{ duration: 0.15 }}
+          exit={{ opacity: 0, y: 6 }}
+          transition={{ duration: 0.2 }}
         >
-          Wait! We recommend completing this step for the best results.
+          <span className="inline-block rounded-lg border border-amber-200/60 bg-amber-50/95 px-3 py-1.5 text-[12px] font-medium text-amber-700 shadow-sm backdrop-blur-sm">
+            Try completing this step first for the best experience.
+          </span>
         </motion.div>
       )}
     </AnimatePresence>
@@ -220,20 +206,27 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
   const [currentStep, setCurrentStep] = useState(0)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
   const [dontShowAgain, setDontShowAgain] = useState(true)
-  const [nextClickCount, setNextClickCount] = useState(0)
+  const [nudgeCount, setNudgeCount] = useState(0)
   const [showNudge, setShowNudge] = useState(false)
   const [actionPerformed, setActionPerformed] = useState<Record<string, boolean>>({})
-  const tooltipRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // For dragging: track card position to re-draw SVG bridge
+  const dragX = useMotionValue(0)
+  const dragY = useMotionValue(0)
+  const [cardOffset, setCardOffset] = useState({ x: 0, y: 0 })
+  const cardRef = useRef<HTMLDivElement>(null)
 
   const step = TOUR_STEPS[currentStep]
   const isFirst = currentStep === 0
   const isLast = currentStep === TOUR_STEPS.length - 1
 
+  useEffect(() => setMounted(true), [])
+
   /* ─── Track interaction on target elements ─────────── */
 
   useEffect(() => {
     if (!step.target) return
-
     const el = document.querySelector(`[data-onboarding="${step.target}"]`)
     if (!el) return
 
@@ -249,12 +242,15 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
     }
   }, [step.target, step.id])
 
-  /* ─── Reset nudge/click count on step change ───────── */
+  /* ─── Reset nudge/drag on step change ──────────────── */
 
   useEffect(() => {
-    setNextClickCount(0)
+    setNudgeCount(0)
     setShowNudge(false)
-  }, [currentStep])
+    setCardOffset({ x: 0, y: 0 })
+    dragX.set(0)
+    dragY.set(0)
+  }, [currentStep, dragX, dragY])
 
   /* ─── Measure target element ───────────────────────── */
 
@@ -273,7 +269,7 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
 
   useEffect(() => {
     measureTarget()
-    const id = setInterval(measureTarget, 300)
+    const id = setInterval(measureTarget, 250)
     window.addEventListener("resize", measureTarget)
     window.addEventListener("scroll", measureTarget, true)
     return () => {
@@ -290,26 +286,23 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
     const el = document.querySelector(`[data-onboarding="${step.target}"]`)
     if (el && containerRef.current) {
       el.scrollIntoView({ behavior: "smooth", block: "center" })
-      // Re-measure after scroll
       setTimeout(measureTarget, 400)
     }
   }, [step.target, containerRef, measureTarget])
 
-  /* ─── Navigation with nudge logic ──────────────────── */
+  /* ─── Navigation with soft-lock nudge ──────────────── */
 
   const handleNext = useCallback(() => {
-    // For steps with targets: validate interaction
     if (step.target && !actionPerformed[step.id]) {
-      const count = nextClickCount + 1
-      setNextClickCount(count)
+      const count = nudgeCount + 1
+      setNudgeCount(count)
 
       if (count === 1) {
-        // First click without action: show nudge
         setShowNudge(true)
         setTimeout(() => setShowNudge(false), 3000)
         return
       }
-      // Second click: allow hidden skip (fall through)
+      // Second click = hidden skip, fall through
     }
 
     if (isLast) {
@@ -317,7 +310,7 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
     } else {
       setCurrentStep((s) => s + 1)
     }
-  }, [step, isLast, onComplete, dontShowAgain, actionPerformed, nextClickCount])
+  }, [step, isLast, onComplete, dontShowAgain, actionPerformed, nudgeCount])
 
   const handleBack = useCallback(() => {
     if (!isFirst) setCurrentStep((s) => s - 1)
@@ -327,86 +320,97 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
     onComplete(dontShowAgain)
   }, [onComplete, dontShowAgain])
 
-  /* ─── Tooltip positioning ──────────────────────────── */
+  /* ─── Card position calculation (sidecar) ──────────── */
 
-  const getTooltipStyle = (): React.CSSProperties => {
+  const getCardStyle = (): React.CSSProperties => {
+    const sidebarLeft = window.innerWidth - SIDEBAR_WIDTH
+
     if (!targetRect) {
+      // Welcome / Execute: center in the viewport area left of sidebar
       return {
         position: "fixed",
         top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
+        left: `${(sidebarLeft - CARD_WIDTH) / 2}px`,
+        width: `${CARD_WIDTH}px`,
+        transform: "translateY(-50%)",
       }
     }
 
-    const tooltipWidth = 340
-    let left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2
-    const top = targetRect.bottom + 24
-
-    if (left < 12) left = 12
-    if (left + tooltipWidth > window.innerWidth - 12) {
-      left = window.innerWidth - 12 - tooltipWidth
-    }
+    // Sidecar: vertically centered to target, 40px gap to sidebar left edge
+    const cardLeft = sidebarLeft - CARD_WIDTH - GAP
+    const targetCenterY = targetRect.top + targetRect.height / 2
+    const cardTop = targetCenterY // will be shifted by transform: -50%
 
     return {
       position: "fixed",
-      top: `${top}px`,
-      left: `${left}px`,
-      width: `${tooltipWidth}px`,
+      top: `${cardTop}px`,
+      left: `${Math.max(12, cardLeft)}px`,
+      width: `${CARD_WIDTH}px`,
+      transform: "translateY(-50%)",
     }
   }
 
-  /* ─── Arrow positioning ────────────────────────────── */
+  /* ─── SVG bridge coordinates ───────────────────────── */
 
-  const getArrowStyle = (): React.CSSProperties | undefined => {
-    if (!targetRect || !step.arrowSide) return undefined
+  const getBridgeProps = () => {
+    if (!targetRect || !cardRef.current) return null
 
-    const cx = targetRect.left + targetRect.width / 2 - 16
-    const cy = targetRect.top + targetRect.height / 2 - 22
-
-    switch (step.arrowSide) {
-      case "top":
-        return { left: `${cx}px`, top: `${targetRect.bottom + 2}px` }
-      case "bottom":
-        return { left: `${cx}px`, top: `${targetRect.top - 48}px` }
-      case "left":
-        return { left: `${targetRect.right + 2}px`, top: `${cy}px` }
-      case "right":
-        return { left: `${targetRect.left - 38}px`, top: `${cy}px` }
-      default:
-        return undefined
+    const cardRect = cardRef.current.getBoundingClientRect()
+    return {
+      cardRight: cardRect.right + cardOffset.x,
+      cardCenterY: cardRect.top + cardRect.height / 2 + cardOffset.y,
+      targetLeft: targetRect.left,
+      targetCenterY: targetRect.top + targetRect.height / 2,
     }
   }
 
-  return (
+  const bridgeProps = getBridgeProps()
+
+  if (!mounted) return null
+
+  const content = (
     <>
       {/* Overlay */}
-      <SpotlightOverlay targetRect={targetRect} onOverlayClick={() => {}} />
+      <SpotlightOverlay targetRect={targetRect} />
 
-      {/* Animated gradient arrow */}
+      {/* SVG Bridge */}
       <AnimatePresence>
-        {targetRect && step.arrowSide && (
-          <GradientArrow
-            key={step.id + "-arrow"}
-            side={step.arrowSide}
-            style={getArrowStyle()}
+        {bridgeProps && targetRect && (
+          <SvgBridge
+            key={step.id + "-bridge-" + cardOffset.x + cardOffset.y}
+            {...bridgeProps}
           />
         )}
       </AnimatePresence>
 
-      {/* Tooltip card -- glassmorphism light theme */}
+      {/* Draggable sidecar card */}
       <AnimatePresence mode="wait">
         <motion.div
           key={step.id}
-          ref={tooltipRef}
-          className="z-[10001] w-[340px] rounded-2xl border border-white/60 bg-white/80 p-6 shadow-xl shadow-black/[0.08] backdrop-blur-xl"
-          style={getTooltipStyle()}
-          initial={{ opacity: 0, y: 10, scale: 0.96 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -10, scale: 0.96 }}
+          ref={cardRef}
+          className="z-[10002] cursor-grab rounded-2xl border border-white/70 bg-white/80 p-6 shadow-xl shadow-black/[0.08] backdrop-blur-xl active:cursor-grabbing"
+          style={{
+            ...getCardStyle(),
+            x: dragX,
+            y: dragY,
+          }}
+          drag
+          dragMomentum={false}
+          dragElastic={0}
+          onDrag={() => {
+            setCardOffset({ x: dragX.get(), y: dragY.get() })
+          }}
+          initial={{ opacity: 0, scale: 0.95, x: -16 }}
+          animate={{ opacity: 1, scale: 1, x: 0 }}
+          exit={{ opacity: 0, scale: 0.95, x: -16 }}
           transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
         >
-          {/* Step indicator dots */}
+          {/* Drag handle hint */}
+          <div className="mb-3 flex justify-center">
+            <div className="h-1 w-8 rounded-full bg-[#cbd5e1]/50" />
+          </div>
+
+          {/* Progress dots */}
           <div className="mb-4 flex items-center gap-1.5">
             {TOUR_STEPS.map((_, i) => (
               <span
@@ -421,30 +425,27 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
                 )}
               />
             ))}
-            <span className="ml-auto text-[11px] font-medium text-[#64748b]">
+            <span className="ml-auto text-[11px] font-medium tabular-nums text-[#94a3b8]">
               {currentStep + 1}/{TOUR_STEPS.length}
             </span>
           </div>
 
           {/* Content */}
-          <h3 className="text-[20px] font-bold tracking-tight text-[#0f172a]">
+          <h3 className="text-[20px] font-bold leading-tight tracking-tight text-[#0f172a]">
             {step.headline}
           </h3>
+          <p className="mt-2.5 text-[15px] leading-relaxed text-[#475569]">
+            {step.body}
+          </p>
+          {step.actionHint && (
+            <p className="mt-2 text-[13px] font-medium text-[#3b82f6]">
+              {step.actionHint}
+            </p>
+          )}
 
-          <ul className="mt-3 space-y-2">
-            {step.points.map((point, i) => (
-              <li key={i} className="flex items-start gap-2.5">
-                <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#3b82f6]/60" />
-                <span className="text-[16px] leading-relaxed text-[#334155]">
-                  {point}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          {/* Last step: checkbox + footer */}
+          {/* Last step: don't-show-again checkbox */}
           {isLast && (
-            <div className="mt-5 border-t border-[#e2e8f0]/60 pt-4">
+            <div className="mt-5 border-t border-[#e2e8f0]/50 pt-4">
               <label className="flex cursor-pointer items-center gap-2.5">
                 <input
                   type="checkbox"
@@ -452,7 +453,7 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
                   onChange={(e) => setDontShowAgain(e.target.checked)}
                   className="h-4 w-4 rounded border-[#cbd5e1] bg-white accent-[#3b82f6]"
                 />
-                <span className="text-[14px] text-[#64748b]">
+                <span className="text-[13px] text-[#64748b]">
                   {"Don\u2019t show this guide again"}
                 </span>
               </label>
@@ -465,7 +466,7 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
 
             <button
               type="button"
-              className="text-[13px] font-medium text-[#94a3b8] transition-colors duration-200 hover:text-[#64748b]"
+              className="text-[12px] font-medium text-[#94a3b8] transition-colors duration-200 hover:text-[#64748b]"
               onClick={handleSkip}
             >
               Skip tour
@@ -474,7 +475,7 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
               {!isFirst && (
                 <button
                   type="button"
-                  className="flex h-9 items-center rounded-lg border border-[#e2e8f0] bg-white px-4 text-[14px] font-medium text-[#475569] transition-all duration-200 hover:border-[#cbd5e1] hover:text-[#0f172a]"
+                  className="flex h-9 items-center rounded-lg border border-[#e2e8f0] bg-white px-4 text-[13px] font-medium text-[#475569] transition-all duration-200 hover:border-[#cbd5e1] hover:text-[#0f172a]"
                   onClick={handleBack}
                 >
                   Back
@@ -482,7 +483,7 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
               )}
               <button
                 type="button"
-                className="flex h-9 items-center rounded-lg bg-[#0f172a] px-5 text-[14px] font-semibold text-white transition-all duration-200 hover:bg-[#1e293b]"
+                className="flex h-9 items-center rounded-lg bg-[#0f172a] px-5 text-[13px] font-semibold text-white transition-all duration-200 hover:bg-[#1e293b]"
                 onClick={handleNext}
               >
                 {isLast ? "Finish" : "Next"}
@@ -493,4 +494,6 @@ export function OnboardingTour({ containerRef, onComplete }: OnboardingTourProps
       </AnimatePresence>
     </>
   )
+
+  return createPortal(content, document.body)
 }
