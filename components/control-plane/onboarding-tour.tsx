@@ -156,13 +156,13 @@ function SpotlightOverlay({ rect }: { rect: DOMRect | null }) {
   return (
     <motion.div
       className="fixed inset-0 z-[9999]"
-      style={{ pointerEvents: "auto" }}
+      style={{ pointerEvents: "none" }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.3 }}
     >
-      <svg width="100%" height="100%" className="absolute inset-0">
+      <svg width="100%" height="100%" className="absolute inset-0" style={{ pointerEvents: "none" }}>
         <defs>
           <mask id="spotlight-mask">
             {/* White = visible overlay area */}
@@ -190,20 +190,6 @@ function SpotlightOverlay({ rect }: { rect: DOMRect | null }) {
           mask="url(#spotlight-mask)"
         />
       </svg>
-
-      {/* Pointer-events passthrough on the cutout area */}
-      {rect && (
-        <div
-          className="fixed z-[10000]"
-          style={{
-            left: rect.left - padding,
-            top: rect.top - padding,
-            width: rect.width + padding * 2,
-            height: rect.height + padding * 2,
-            pointerEvents: "none",
-          }}
-        />
-      )}
     </motion.div>
   )
 }
@@ -399,49 +385,6 @@ export function OnboardingTour({ containerRef, onComplete, active }: OnboardingT
     <>
       {/* Overlay with spotlight cutout */}
       <SpotlightOverlay rect={targetRect} />
-
-      {/* Block pointer events on the overlay, but allow through the cutout */}
-      {/* The overlay SVG handles the mask; we add a click-blocker everywhere
-          except the cutout region, so clicking the overlay doesn't trigger
-          anything underneath */}
-      <div
-        className="fixed inset-0 z-[10000]"
-        style={{ pointerEvents: "auto" }}
-        onClick={(e) => {
-          // If click is inside the cutout area, let it through
-          if (targetRect) {
-            const padding = 8
-            const x = e.clientX
-            const y = e.clientY
-            if (
-              x >= targetRect.left - padding &&
-              x <= targetRect.right + padding &&
-              y >= targetRect.top - padding &&
-              y <= targetRect.bottom + padding
-            ) {
-              return // Allow interaction with the target
-            }
-          }
-          // Otherwise, consume the click (don't propagate)
-          e.stopPropagation()
-        }}
-      />
-
-      {/* Interactive cutout passthrough — this div sits exactly over the
-          cutout and has pointerEvents: none so clicks fall through to the
-          actual UI elements underneath */}
-      {targetRect && (
-        <div
-          className="fixed z-[10003]"
-          style={{
-            left: targetRect.left - 8,
-            top: targetRect.top - 8,
-            width: targetRect.width + 16,
-            height: targetRect.height + 16,
-            pointerEvents: "none",
-          }}
-        />
-      )}
 
       {/* SVG Arrow */}
       <AnimatePresence>
