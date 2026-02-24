@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { motion, AnimatePresence } from "framer-motion"
+import { OnboardingTour } from "./onboarding-tour"
 
 /* ─── Types ───────────────────────────────────────────── */
 
@@ -220,6 +221,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const [appliedCodes, setAppliedCodes] = useState<string[]>([])
   const [creditToast, setCreditToast] = useState<string | null>(null)
 
+  // Onboarding tour
+  const [showOnboarding, setShowOnboarding] = useState(false)
+  const stepsContainerRef = useRef<HTMLDivElement>(null)
+
   const quotaIsZero = quota === 0
 
   /* Derived: is the profile read-only? Only during active run */
@@ -252,6 +257,34 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
   const showCreditToast = useCallback((msg: string) => {
     setCreditToast(msg)
     setTimeout(() => setCreditToast(null), 3000)
+  }, [])
+
+  /* ─── Onboarding: auto-trigger on first AUTH_ACTIVE ───── */
+
+  useEffect(() => {
+    if (authState !== "AUTH_ACTIVE") return
+
+    // Delay slightly so the UI finishes rendering before the tour measures targets
+    const timer = setTimeout(() => {
+      setShowOnboarding(true)
+    }, 600)
+
+    return () => clearTimeout(timer)
+    // Only trigger once when authState first becomes AUTH_ACTIVE
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authState])
+
+  const handleOnboardingComplete = useCallback((dontShowAgain: boolean) => {
+    setShowOnboarding(false)
+    if (dontShowAgain) {
+      fetch("/api/user/onboarding-complete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dontShowAgain: true }),
+      }).catch(() => {
+        // Silently fail — non-critical
+      })
+    }
   }, [])
 
   /* ─── Scan & Score (simulated) ────────────────────────── */
@@ -979,9 +1012,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
             </AnimatePresence>
 
             {/* ─── Steps ──────────────────────────────────── */}
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div ref={stepsContainerRef} className="min-h-0 flex-1 overflow-y-auto">
 
               {/* Step 1: Upload Resume */}
+              <div data-onboarding="step-1-upload">
               <StepAccordion
                 number={1}
                 title="Upload Resume"
@@ -1040,7 +1074,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                     </div>
 
                     {/* ─── Confirm Your Details (inline) ────────── */}
-                    <div className="space-y-3">
+                    <div data-onboarding="step-1-preferences" className="space-y-3">
 
                       {/* ── Work Authorization Card ──────────────── */}
                       <div className="rounded-xl border border-border/60 bg-[#f8f9fb]">
@@ -1277,8 +1311,10 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   </div>
                 )}
               </StepAccordion>
+              </div>
 
               {/* Step 2: Search your role */}
+              <div data-onboarding="step-2-profiles">
               <StepAccordion number={2} title="Search your role" status={steps.step2} isActive={activeStep === 2} onToggle={() => { if (steps.step2 !== "not-started") handleStepToggle(2) }} canToggle={steps.step2 !== "not-started"}>
 
                 {/* Role cards */}
@@ -1437,6 +1473,7 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                   </div>
                 )}
               </StepAccordion>
+              </div>
 
               {/* Step 3: Start Fill */}
               <StepAccordion number={3} title="Start Fill" status={steps.step3} isActive={activeStep === 3} onToggle={() => { if (steps.step3 !== "not-started") handleStepToggle(3) }} canToggle={steps.step3 !== "not-started"}>
@@ -1545,6 +1582,13 @@ export function ExtensionPopup({ open, onOpenChange }: ExtensionPopupProps) {
                 </button>
               </div>
             </div>
+
+            {/* ─── Onboarding Tour ──────────────────────────── */}
+            <OnboardingTour
+              containerRef={stepsContainerRef}
+              onComplete={handleOnboardingComplete}
+              active={showOnboarding}
+            />
 
             {/* ─── Paste Modal ─────────────────────────────── */}
             <AnimatePresence>
