@@ -398,7 +398,8 @@ export function OnboardingTour({ containerRef, onComplete, active }: OnboardingT
         )}
       </AnimatePresence>
 
-      {/* Card */}
+      {/* Card — stopPropagation prevents React synthetic events from
+          bubbling through the portal to the Sheet's backdrop handler */}
       <AnimatePresence mode="wait">
         <motion.div
           key={step.id}
@@ -409,6 +410,9 @@ export function OnboardingTour({ containerRef, onComplete, active }: OnboardingT
           exit={{ opacity: 0, x: 20, scale: 0.97 }}
           transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
           className="rounded-2xl border border-white/50 bg-white/80 p-6 shadow-2xl shadow-black/[0.08] backdrop-blur-md"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
         >
           {/* Step counter */}
           <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500/70">
