@@ -76,7 +76,7 @@ const TOUR_STEPS: TourStep[] = [
     headline: "Ready to Apply?",
     points: [
       "We scan and score LinkedIn jobs in real-time.",
-      "Apply to "Recommended" (best match) or "All."",
+      'Apply to "Recommended" (best match) or "All."',
     ],
     skipValidation: true,
   },
